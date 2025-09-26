@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+pydantic-settings
+SQLAlchemy>=2
+psycopg[binary]
+alembic
+httpx
