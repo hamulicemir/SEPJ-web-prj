@@ -1,0 +1,15 @@
+services:
+  gemma-api:
+    build: ./llm-gemma
+    environment:
+      HF_TOKEN: ${HF_TOKEN}
+      HUGGINGFACE_HUB_TOKEN: ${HF_TOKEN}   # wichtig als Fallback
+      MODEL_ID: ${MODEL_ID:-google/gemma-2-2b-it}
+    volumes:
+      - gemma_cache:/data/hf_cache
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+
+volumes:
+  gemma_cache:

@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+transformers>=4.44
+accelerate
+safetensors
+huggingface_hub
