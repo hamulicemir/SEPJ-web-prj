@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 pydantic-settings
 SQLAlchemy>=2
-psycopg[binary]
+psycopg2-binary
 alembic
 httpx
+python-multipart
