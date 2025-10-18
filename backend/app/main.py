@@ -46,23 +46,42 @@ DEFAULT_TYPES = [
 ]
 
 def load_incident_types():
-    """Lädt Vorfallstypen aus DB oder nutzt Fallback."""
+    """Lädt alle Vorfallstypen aus der Datenbank und gibt strukturierte Infos zurück."""
     try:
         with engine.connect() as conn:
-            rows = conn.execute(sa.text("SELECT code FROM incident_types")).fetchall()
-            types = [r[0] for r in rows]
-            return types if types else DEFAULT_TYPES
+            rows = conn.execute(
+                sa.text("SELECT code, name, description FROM incident_types ORDER BY code")
+            ).fetchall()
+            types = [{"code": r[0], "name": r[1], "desc": r[2]} for r in rows]
+            logger.info(f"{len(types)} Vorfallstypen aus DB geladen: {[t['code'] for t in types]}")
+            return types
     except Exception as e:
         logger.warning(f"Vorfallstypen konnten nicht aus DB gelesen werden: {e}")
-        return DEFAULT_TYPES
+        # Fallback (nur Codes, falls DB-Fehler)
+        return [
+            {"code": c, "name": c.capitalize(), "desc": ""}
+            for c in [
+                "einbruch",
+                "sachbeschaedigung",
+                "koerperverletzung",
+                "brandstiftung",
+                "selbstverletzung",
+                "diebstahl",
+            ]
+        ]
 
-def build_prompt(text: str, types: list[str]) -> str:
-    """Erstellt den eigentlichen Prompt für Gemma."""
+def build_prompt(text: str, types: list[dict]) -> str:
+    """Erstellt den Prompt für Gemma mit Beschreibungstexten."""
+    lines = []
+    for t in types:
+        lines.append(f"- {t['name']} ({t['code']}): {t['desc']}")
+    joined = "\n".join(lines)
+
     return (
-        "Analysiere den folgenden Text und erkenne, ob einer oder mehrere "
-        f"dieser Vorfallstypen vorkommen: {', '.join(types)}.\n"
-        "Antworte nur mit einer durch Komma getrennten Liste der erkannten Typen, "
-        "oder schreibe 'keiner', wenn nichts passt.\n\n"
+        "Analysiere den folgenden Text und erkenne, ob einer oder mehrere der folgenden Vorfallstypen vorkommen:\n"
+        f"{joined}\n\n"
+        "Antworte nur mit einer durch Komma getrennten Liste der erkannten Typen "
+        "(z. B. 'brandstiftung, diebstahl') oder schreibe 'keiner', wenn nichts passt.\n\n"
         f"TEXT:\n{text}"
     )
 
