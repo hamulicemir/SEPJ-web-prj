@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
 import DownloadButton from "../components/DownloadButton";
-import Navbar from "../../../src/components/Navbar";
 
 function ReportGenerator() {
   const [selectedFile, setSelectedFile] = useState(null);
