@@ -1,7 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException
 from .db import engine
+from sqlalchemy import text
 import sqlalchemy as sa
+from dotenv import load_dotenv
 import os, httpx, logging
+
+load_dotenv()
+
 
 # -----------------------------------------------------------------------------
 # Basis-Setup
@@ -95,43 +100,24 @@ async def fetch_text_from_url(url: str) -> str:
 # Kern-Endpoint
 # -----------------------------------------------------------------------------
 @app.post("/api/llm/analyze")
-async def analyze_incident(
-    file: UploadFile | None = File(None),
-    url: str | None = Form(None),
-    text: str | None = Form(None),
-):
+async def analyze_incident(text: str):
     """
-    Erwartet EINE Quelle: file ODER url ODER text.
+    Erwartete Quelle: text.
     Schickt den Inhalt an Gemma und loggt die Antwort.
     """
-    sources = [file is not None, url is not None, text is not None]
-    if sum(sources) != 1:
-        raise HTTPException(status_code=400, detail="Genau eine Quelle angeben (file, url oder text).")
 
     # -------------------------------
     # 1. Textinhalt beschaffen
     # -------------------------------
-    if file is not None:
-        if not file.filename.lower().endswith(".txt"):
-            raise HTTPException(status_code=400, detail="Nur .txt-Dateien werden akzeptiert.")
-        raw = await file.read()
-        try:
-            content = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            content = raw.decode("latin-1")
-    elif url is not None:
-        content = await fetch_text_from_url(url)
-    else:
-        content = text or ""
 
-    if not content.strip():
+    if not text.strip():
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
 
     # -------------------------------
     # 2. Vorfallstypen & Prompt
     # -------------------------------
     types = load_incident_types()
-    prompt = build_prompt(content, types)
+    prompt = build_prompt(text, types)
 
     # -------------------------------
     # 3. Anfrage an Ollama / Gemma 2
@@ -169,8 +155,6 @@ async def analyze_incident(
     return {
         "status": "ok",
         "model": model,
-        "chars_in": len(content),
+        "chars_in": len(text),
         "logged": True,  # Hinweis: echte Ausgabe steht nur im Log
     }
-
-
