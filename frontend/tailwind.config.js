@@ -1,16 +1,25 @@
-import flowbite from 'flowbite/plugin';
-
-/** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    "./node_modules/flowbite/**/*.js"
+    "./src/**/*.{js,jsx,ts,tsx}",
+    "node_modules/flowbite-react/lib/esm/**/*.js",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'neutral-secondary-medium': '#f0f2f5',
+        'default-medium': '#d1d5db',
+        'heading': '#111827',
+        'brand': '#2563eb',
+        'body': '#6b7280',
+      },
+      borderRadius: {
+        base: '0.5rem',
+      },
+      boxShadow: {
+        xs: '0 1px 2px rgba(0, 0, 0, 0.05)',
+      },
+    },
   },
-  plugins: [
-    flowbite
-  ],
+  plugins: [require("flowbite/plugin")],
 };

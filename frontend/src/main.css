@@ -1,40 +1,8 @@
-body, html, #root {
-  height: 100%;
-  margin: 0;
-  background-color: #f0f2f5;
-  font-family: 'Segoe UI'
-}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "flowbite";
+@import "flowbite/src/themes/default";
 
-.app-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 1rem;
-}
-
-.report-container {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 1rem;
-  padding-right: 0.5rem;
-}
-
-.report-block {
-  background-color: #ffffff;
-  border-radius: 10px;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.prompt-form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.prompt-textarea {
-  flex: 1;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
