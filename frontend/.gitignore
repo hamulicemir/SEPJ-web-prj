@@ -1,0 +1,45 @@
+# Ignore Windows and system files
+/AppData/
+/Cookies/
+/Documents/
+/Recent/
+/Downloads/
+/VirtualBox VMs/
+/ntuser.*
+/Saved Games/
+/Searches/
+/Videos/
+
+# Ignore system and IDE config files
+/.vscode/
+/.idea/
+/.gradle/
+/.android/
+/.ipython/
+/.cache/
+/.VirtualBox/
+/ntuser.*
+
+node_modules/
+
+# Environment
+.env.local
+.env*
+
+
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build outputs
+.next/
+out/
+dist/
+build/
+
+# misc
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
