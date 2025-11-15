@@ -1,4 +1,5 @@
 from fastapi import FastAPI, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from .db import engine
 from sqlalchemy import text
 import sqlalchemy as sa
@@ -15,6 +16,14 @@ app = FastAPI(title="SEPJ Backend API")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # wenn du willst: ["http://localhost:5173"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # -----------------------------------------------------------------------------
 # Healthcheck
@@ -90,12 +99,6 @@ def build_prompt(text: str, types: list[dict]) -> str:
         f"TEXT:\n{text}"
     )
 
-async def fetch_text_from_url(url: str) -> str:
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.get(url)
-        r.raise_for_status()
-        return r.text
-
 # -----------------------------------------------------------------------------
 # Kern-Endpoint
 # -----------------------------------------------------------------------------
@@ -105,23 +108,14 @@ async def analyze_incident(text: str):
     Erwartete Quelle: text.
     Schickt den Inhalt an Gemma und loggt die Antwort.
     """
-
-    # -------------------------------
-    # 1. Textinhalt beschaffen
-    # -------------------------------
-
+    # Textinhalt beschaffen
     if not text.strip():
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
 
-    # -------------------------------
-    # 2. Vorfallstypen & Prompt
-    # -------------------------------
+    # Vorfallstypen aus DB
     types = load_incident_types()
     prompt = build_prompt(text, types)
 
-    # -------------------------------
-    # 3. Anfrage an Ollama / Gemma 2
-    # -------------------------------
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model = os.getenv("OLLAMA_MODEL", "gemma:2b")
 
@@ -140,20 +134,17 @@ async def analyze_incident(text: str):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Ollama-Fehler: {e}")
 
-    # -------------------------------
-    # 4. Ausgabe / Logging
-    # -------------------------------
+    # Ausgabe / Logging
     result = data.get("response", "").strip()
 
     logger.info("---- GEMMA 2 RESPONSE BEGIN ----")
     logger.info(result)
     logger.info("---- GEMMA 2 RESPONSE END ----")
 
-    # -------------------------------
-    # 5. Rückgabe an Frontend (vorerst minimal)
-    # -------------------------------
+    # Rückgabe an Frontend
     return {
         "status": "ok",
+        "result": result,
         "model": model,
         "chars_in": len(text),
         "logged": True,  # Hinweis: echte Ausgabe steht nur im Log
