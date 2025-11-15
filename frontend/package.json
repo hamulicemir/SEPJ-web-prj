@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.12.2",
+    "axios": "^1.13.2",
     "flowbite": "^3.1.2",
     "flowbite-react": "^0.12.10",
     "react": "^19.1.1",
