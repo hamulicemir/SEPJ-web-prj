@@ -1,9 +1,30 @@
 import React, { useState } from "react";
 import { Label, Textarea, Card, Button } from "flowbite-react";
+import axios from "axios";
+
 import Navbar from "./components/Navbar.jsx";
 
 export default function App() {
   const [message, setMessage] = useState("");
+  const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const analyzeReport = async () => {
+    setLoading(true);
+    setResponse("");
+
+    try {
+      const res = await axios.post("http://localhost:8000/api/llm/analyze", {
+        text: message,
+      });
+
+      setResponse(res.data.result);
+    } catch (err) {
+      console.error(err);
+      setResponse("Fehler beim Abruf der Analyse.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900" data-theme="light">
@@ -29,20 +50,21 @@ export default function App() {
           <div className="flex justify-end mt-1">
             <Button
               color="blue"
-              onClick={() => alert("Bericht gesendet!")}
-              disabled={!message.trim()}
+              onClick={analyzeReport}
+              disabled={!message.trim() || loading}
             >
-              Bericht analysieren
+              {loading ? "Analysiere..." : "Bericht analysieren"}
             </Button>
           </div>
         </Card>
-        {/* Ausgabe Card*/}
+        {/* Ausgabe Card */}
         <Card className="w-full max-w-4xl bg-white shadow-md p-2">
           <h2 className="text-2xl font-semibold mb-2 text-gray-800">
             Berichtsausgabe
           </h2>
+
           <div className="whitespace-pre-wrap text-gray-700">
-            {message}
+            {response || "Noch keine Analyse durchgeführt."}
           </div>
         </Card>
       </div>

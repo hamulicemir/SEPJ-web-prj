@@ -5,9 +5,12 @@ from sqlalchemy import text
 import sqlalchemy as sa
 from dotenv import load_dotenv
 import os, httpx, logging
+from pydantic import BaseModel
 
+# -----------------------------------------------------------------------------
+# Umgebungsvariablen laden
+# -----------------------------------------------------------------------------
 load_dotenv()
-
 
 # -----------------------------------------------------------------------------
 # Basis-Setup
@@ -40,9 +43,41 @@ def health():
 @app.get("/api/llm/ping")
 async def llm_ping():
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(f"{base}/api/tags")
-        r.raise_for_status()
+    url = f"{base}/api/tags"
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            logger.info("OLLAMA_PING status=%s body=%s", resp.status_code, resp.text)
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        # Ollama antwortet, aber mit Fehlerstatus (z.B. 404, 500)
+        logger.error(
+            "Ollama HTTP-Fehler beim Ping: status=%s body=%s",
+            e.response.status_code,
+            e.response.text,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "msg": "Ollama HTTP-Fehler beim Ping",
+                "status": e.response.status_code,
+                "body": e.response.text,
+                "base_url": base,
+            },
+        )
+    except httpx.RequestError as e:
+        # Verbindungsproblem (DNS, Timeout, Connection refused, ...)
+        logger.error("Ollama nicht erreichbar beim Ping: %r", e)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "msg": "Ollama nicht erreichbar",
+                "base_url": base,
+                "error": str(e),
+            },
+        )
+
     return {"ollama": "ok"}
 
 # -----------------------------------------------------------------------------
@@ -102,13 +137,18 @@ def build_prompt(text: str, types: list[dict]) -> str:
 # -----------------------------------------------------------------------------
 # Kern-Endpoint
 # -----------------------------------------------------------------------------
+
+class AnalyzeRequest(BaseModel):
+    text: str
+
 @app.post("/api/llm/analyze")
-async def analyze_incident(text: str):
+async def analyze_incident(payload: AnalyzeRequest):
     """
-    Erwartete Quelle: text.
+    Erwartete Quelle: JSON { "text": "..." }.
     Schickt den Inhalt an Gemma und loggt die Antwort.
     """
-    # Textinhalt beschaffen
+    text = payload.text
+
     if not text.strip():
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
 
@@ -118,8 +158,9 @@ async def analyze_incident(text: str):
 
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model = os.getenv("OLLAMA_MODEL", "gemma:2b")
+    url = f"{base}/api/generate"
 
-    payload = {
+    ollama_payload = {
         "model": model,
         "prompt": prompt,
         "stream": False,
@@ -128,24 +169,68 @@ async def analyze_incident(text: str):
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(f"{base}/api/generate", json=payload)
+            logger.info("Sende Anfrage an Ollama: url=%s model=%s", url, model)
+            resp = await client.post(url, json=ollama_payload)
+            logger.info(
+                "OLLAMA_GENERATE status=%s body=%s",
+                resp.status_code,
+                resp.text[:1000],  # Body gekürzt loggen
+            )
             resp.raise_for_status()
             data = resp.json()
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Ollama-Fehler: {e}")
+
+    except httpx.HTTPStatusError as e:
+        # Ollama hat geantwortet, aber mit Fehlerstatus (z.B. 404: Modell nicht gefunden)
+        status = e.response.status_code
+        body = e.response.text
+        logger.error(
+            "Ollama HTTP-Fehler bei /api/generate: status=%s body=%s",
+            status,
+            body,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "msg": "Ollama HTTP-Fehler bei /api/generate",
+                "status": status,
+                "body": body,
+                "base_url": base,
+                "model": model,
+            },
+        )
+
+    except httpx.RequestError as e:
+        # Netzwerkproblem, z.B. Timeout, DNS, Connection refused
+        logger.error("Ollama-Verbindungsfehler bei /api/generate: %r", e)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "msg": "Ollama-Verbindungsfehler bei /api/generate",
+                "base_url": base,
+                "model": model,
+                "error": str(e),
+            },
+        )
+
+    except Exception as e:
+        # Unerwarteter Fehler im Backend (JSON-Parsing, KeyError, etc.)
+        logger.exception("Unerwarteter Fehler in analyze_incident")
+        raise HTTPException(
+            status_code=500,
+            detail="Unerwarteter Fehler im Backend bei der LLM-Analyse.",
+        )
 
     # Ausgabe / Logging
     result = data.get("response", "").strip()
 
-    logger.info("---- GEMMA 2 RESPONSE BEGIN ----")
+    logger.info("---- GEMMA RESPONSE BEGIN ----")
     logger.info(result)
-    logger.info("---- GEMMA 2 RESPONSE END ----")
+    logger.info("---- GEMMA RESPONSE END ----")
 
-    # Rückgabe an Frontend
     return {
         "status": "ok",
         "result": result,
         "model": model,
         "chars_in": len(text),
-        "logged": True,  # Hinweis: echte Ausgabe steht nur im Log
+        "logged": True,
     }
