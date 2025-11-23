@@ -113,19 +113,13 @@ def load_incident_types():
 
 
 def build_prompt(text: str, types: list[dict]) -> str:
-    """
-    Baut einen strengen, auf hohe Präzision getrimmten Prompt.
-    Rückgabeformat: JSON-Liste der Codes (z.B. ["diebstahl"]).
-    Das Modell soll lieber zu wenig als zu viel klassifizieren.
-    """
-
-    # Kategorien knapp auflisten
     type_lines = []
     for t in types:
         desc = (t["desc"] or "").strip()
+        name = (t["name"] or "").strip()
         if len(desc) > 120:
             desc = desc[:117] + "..."
-        type_lines.append(f"- {t['code']}: {desc}")
+        type_lines.append(f"- {name}: {desc}")
 
     categories_str = "\n".join(type_lines)
 
@@ -142,40 +136,16 @@ Regeln (sehr wichtig):
 - Klassifiziere nur konkrete, beschriebene HANDLUNGEN (z.B. schlagen, etwas zerstören, etwas stehlen).
 - KEINE Klassifikation nur aufgrund von Stimmung, Beleidigungen, Unruhe oder möglichen Absichten.
 - Wenn kein Vorfallstyp eindeutig passt: ["keiner"].
-- Maximal 2 Codes, nur wenn beide klar begründet wären.
+- Maximal 3 Codes, nur wenn alle klar zutreffen.
 - Keine Erklärungen, kein zusätzlicher Text, keine neuen Kategorien.
 
-Beispiele:
-
-Text: "Der Patient ist unruhig, schimpft und ist unzufrieden, bleibt aber im Zimmer. Es gibt keine Drohung und keinen Schaden."
-Erwartete Antwort: ["keiner"]
-
-Text: "Die untergebrachte Person hat das Kopfkissen zerrissen und die Matratze beschädigt."
-Erwartete Antwort: ["sachbeschaedigung"]
-
-Text: "Die Person zerstört Eigentum eines anderen Patienten, indem sie sein Handy kaputt macht."
-Erwartete Antwort: ["sachbeschaedigung"]
-
-Text: "Die Person schlägt einen anderen Patienten ins Gesicht."
-Erwartete Antwort: ["koerperverletzung"]
-
-Text: "Die Person ruft: 'Ich werde euch irgendwann alle umbringen', ohne jemanden zu schlagen oder Sachen zu zerstören."
-Erwartete Antwort: ["bedrohung"]
-
-Text: "Die Person ruft: "'Zerstöre das Handy vom ihm, sonst mache ich Ärger', ohne jemanden zu schlagen oder Sachen zu zerstören."
-Erwartete Antwort: ["noetigung"]
-
-Text: "Die Person ist laut und beschimpft das Personal, es gibt aber keine Drohung und keinen Schaden."
-Erwartete Antwort: ["keiner"]
-
-Jetzt der zu klassifizierende Text:
+Text:
 {text}
 
-Antwort (nur JSON-Liste der Codes, z.B. ["diebstahl"] oder ["keiner"]):
+Antwort (nur JSON-Liste der Codes):
 """.strip()
 
 '''
-
 def build_prompt(text: str, types: list[dict]) -> str:
     """
     Baut einen stabilen Prompt für Qwen 2.5 oder Llama.
@@ -234,6 +204,7 @@ async def analyze_incident(payload: AnalyzeRequest):
     # Vorfallstypen aus DB
     types = load_incident_types()
     prompt = build_prompt(text, types)
+    logger.info("Generierter Prompt für LLM:\n%s", prompt)
 
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model = os.getenv("OLLAMA_MODEL", "gemma:2b")
@@ -253,7 +224,6 @@ async def analyze_incident(payload: AnalyzeRequest):
             }
     }
     
-
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             logger.info("Sende Anfrage an Ollama: url=%s model=%s", url, model)
