@@ -125,12 +125,16 @@ CREATE TABLE IF NOT EXISTS prompts (
 -- ============================================================================
 INSERT INTO incident_types (code, name, description, prompt_ref)
 VALUES
-  ('einbruch',          'Einbruch',          'Unbefugtes Eindringen in ein Gebäude oder Raum', 'prompt_einbruch_v1'),
-  ('sachbeschaedigung', 'Sachbeschädigung',  'Zerstörung oder Beschädigung fremden Eigentums', 'prompt_sach_v1'),
-  ('koerperverletzung', 'Körperverletzung',  'Physische Auseinandersetzungen zwischen Personen', 'prompt_koerp_v1'),
-  ('brandstiftung',     'Brandstiftung',     'Vorsätzliches oder fahrlässiges Entzünden von Sachen', 'prompt_brand_v1'),
-  ('selbstverletzung',  'Selbstverletzung',  'Selbstzugefügte Verletzungen', 'prompt_selbst_v1'),
-  ('diebstahl',         'Diebstahl',         'Entwendung von fremdem Eigentum', 'prompt_diebstahl_v1')
+  ('einbruch',                'Einbruch',                'Unbefugtes Eindringen in ein Gebäude oder Raum', 'prompt_einbruch_v1'),
+  ('sachbeschaedigung',       'Sachbeschädigung',        'Zerstörung oder Beschädigung fremden Eigentums', 'prompt_sach_v1'),
+  ('koerperverletzung',       'Körperverletzung',        'Physische Auseinandersetzungen zwischen Personen', 'prompt_koerp_v1'),
+  ('brandstiftung',           'Brandstiftung',           'Vorsätzliches oder fahrlässiges Entzünden von Sachen', 'prompt_brand_v1'),
+  ('selbstverletzung',        'Selbstverletzung',        'Selbstzugefügte Verletzungen', 'prompt_selbst_v1'),
+  ('diebstahl',               'Diebstahl',               'Entwendung von fremdem Eigentum', 'prompt_diebstahl_v1'),
+  ('bedrohung',               'Bedrohung',               'Aussprechen oder Androhen von Gewalt ohne unmittelbare körperliche Einwirkung', 'prompt_bedrohung_v1'),
+  ('noetigung',               'Nötigung',                'Zwang zur Handlung, Duldung oder Unterlassung ohne direkte Gewaltanwendung', 'prompt_noetigung_v1'),
+  ('belästigung',             'Belästigung',             'Unerwünschte, aufdringliche oder störende Handlungen gegenüber einer Person', 'prompt_belaest_v1'),
+  ('alkohol_drogen',          'Alkohol/Drogen',          'Vorfall mit auffälligem Verhalten oder Gefährdung durch Rauschmittel', 'prompt_alkdro_v1'),
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================

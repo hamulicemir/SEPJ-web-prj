@@ -83,56 +83,135 @@ async def llm_ping():
 # -----------------------------------------------------------------------------
 # Hilfsfunktionen
 # -----------------------------------------------------------------------------
-DEFAULT_TYPES = [
-    "einbruch",
-    "sachbeschaedigung",
-    "koerperverletzung",
-    "brandstiftung",
-    "diebstahl",
-    "drogen",
-    "gefängnisordnung_verstoss",
-    "bedrohung"
-]
 
 def load_incident_types():
     """Lädt alle Vorfallstypen aus der Datenbank und gibt strukturierte Infos zurück."""
     try:
         with engine.connect() as conn:
-            rows = conn.execute(
-                sa.text("SELECT code, name, description FROM incident_types ORDER BY code")
-            ).fetchall()
-            types = [{"code": r[0], "name": r[1], "desc": r[2]} for r in rows]
+            rows = conn.execute(sa.text(
+                "SELECT code, name, description FROM incident_types ORDER BY code"
+            )).fetchall()
+
+            types = [
+                {"code": r[0], "name": r[1], "desc": r[2] or ""}
+                for r in rows
+            ]
+
             logger.info(f"{len(types)} Vorfallstypen aus DB geladen: {[t['code'] for t in types]}")
             return types
+
     except Exception as e:
         logger.warning(f"Vorfallstypen konnten nicht aus DB gelesen werden: {e}")
-        # Fallback (nur Codes, falls DB-Fehler)
-        return [
-            {"code": c, "name": c.capitalize(), "desc": ""}
-            for c in [
-                "einbruch",
-                "sachbeschaedigung",
-                "koerperverletzung",
-                "brandstiftung",
-                "selbstverletzung",
-                "diebstahl",
-            ]
+
+        # Minimaler Fallback
+        fallback_codes = [
+            "einbruch", "sachbeschaedigung", "koerperverletzung",
+            "brandstiftung", "selbstverletzung", "diebstahl",
+            "bedrohung", "noetigung", "belästigung", "alkohol_drogen"
         ]
+        return [{"code": c, "name": c.capitalize(), "desc": ""} for c in fallback_codes]
+
 
 def build_prompt(text: str, types: list[dict]) -> str:
-    """Erstellt den Prompt für Gemma mit Beschreibungstexten."""
-    lines = []
-    for t in types:
-        lines.append(f"- {t['name']} ({t['code']}): {t['desc']}")
-    joined = "\n".join(lines)
+    """
+    Baut einen strengen, auf hohe Präzision getrimmten Prompt.
+    Rückgabeformat: JSON-Liste der Codes (z.B. ["diebstahl"]).
+    Das Modell soll lieber zu wenig als zu viel klassifizieren.
+    """
 
-    return (
-        "Analysiere den folgenden Text und erkenne, ob einer oder mehrere der folgenden Vorfallstypen vorkommen:\n"
-        f"{joined}\n\n"
-        "Antworte nur mit einer durch Komma getrennten Liste der erkannten Typen "
-        "(z. B. 'brandstiftung, diebstahl') oder schreibe 'keiner', wenn nichts passt.\n\n"
-        f"TEXT:\n{text}"
-    )
+    # Kategorien knapp auflisten
+    type_lines = []
+    for t in types:
+        desc = (t["desc"] or "").strip()
+        if len(desc) > 120:
+            desc = desc[:117] + "..."
+        type_lines.append(f"- {t['code']}: {desc}")
+
+    categories_str = "\n".join(type_lines)
+
+    return f"""
+Du bist ein streng regelbasiertes Klassifikationsmodell.
+Ordne den Vorfalltext nur dann einem Vorfallstyp zu, wenn die Handlung klar und eindeutig beschrieben ist.
+
+Vorfallstypen:
+{categories_str}
+
+Regeln (sehr wichtig):
+- Gib nur eine JSON-Liste der Codes zurück, z.B. ["diebstahl"] oder ["keiner"].
+- Wenn du dir UNSICHER bist: entscheide dich für WENIGER Kategorien.
+- Klassifiziere nur konkrete, beschriebene HANDLUNGEN (z.B. schlagen, etwas zerstören, etwas stehlen).
+- KEINE Klassifikation nur aufgrund von Stimmung, Beleidigungen, Unruhe oder möglichen Absichten.
+- Wenn kein Vorfallstyp eindeutig passt: ["keiner"].
+- Maximal 2 Codes, nur wenn beide klar begründet wären.
+- Keine Erklärungen, kein zusätzlicher Text, keine neuen Kategorien.
+
+Beispiele:
+
+Text: "Der Patient ist unruhig, schimpft und ist unzufrieden, bleibt aber im Zimmer. Es gibt keine Drohung und keinen Schaden."
+Erwartete Antwort: ["keiner"]
+
+Text: "Die untergebrachte Person hat das Kopfkissen zerrissen und die Matratze beschädigt."
+Erwartete Antwort: ["sachbeschaedigung"]
+
+Text: "Die Person zerstört Eigentum eines anderen Patienten, indem sie sein Handy kaputt macht."
+Erwartete Antwort: ["sachbeschaedigung"]
+
+Text: "Die Person schlägt einen anderen Patienten ins Gesicht."
+Erwartete Antwort: ["koerperverletzung"]
+
+Text: "Die Person ruft: 'Ich werde euch irgendwann alle umbringen', ohne jemanden zu schlagen oder Sachen zu zerstören."
+Erwartete Antwort: ["bedrohung"]
+
+Text: "Die Person ruft: "'Zerstöre das Handy vom ihm, sonst mache ich Ärger', ohne jemanden zu schlagen oder Sachen zu zerstören."
+Erwartete Antwort: ["noetigung"]
+
+Text: "Die Person ist laut und beschimpft das Personal, es gibt aber keine Drohung und keinen Schaden."
+Erwartete Antwort: ["keiner"]
+
+Jetzt der zu klassifizierende Text:
+{text}
+
+Antwort (nur JSON-Liste der Codes, z.B. ["diebstahl"] oder ["keiner"]):
+""".strip()
+
+'''
+
+def build_prompt(text: str, types: list[dict]) -> str:
+    """
+    Baut einen stabilen Prompt für Qwen 2.5 oder Llama.
+    Rückgabeformat: JSON-Liste der passenden Codes.
+    """
+
+    # Kategorien sauber auflisten
+    type_lines = []
+    for t in types:
+        desc = (t["desc"] or "").strip()
+        if len(desc) > 120:
+            desc = desc[:117] + "..."
+        type_lines.append(f"  - {t['code']},")
+
+    categories_str = "\n".join(type_lines)
+
+    return f"""
+        Du bist ein professionelles Klassifikationsmodell.
+        Ordne den folgenden Vorfalltext genau den zutreffenden Vorfallstypen zu.
+
+        **Alle möglichen Vorfallstypen:**
+        {categories_str}
+
+        **Wichtig:**
+        - Gib das Ergebnis **ausschließlich als **Liste der Codes** zurück.
+        - Wenn mehrere Kategorien passen, nenne mehrere.
+        - Keine Erklärungen, kein Fließtext, nur gültige Liste.
+
+        **Text:**
+        {text}
+
+        **Antwortformat:**
+        ["code1", "code2"]
+        """.strip()
+'''
+
 
 # -----------------------------------------------------------------------------
 # Kern-Endpoint
@@ -158,14 +237,22 @@ async def analyze_incident(payload: AnalyzeRequest):
 
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model = os.getenv("OLLAMA_MODEL", "gemma:2b")
+    model = "qwen2.5:3b"
     url = f"{base}/api/generate"
 
     ollama_payload = {
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"num_predict": 64, "temperature": 0},
+        "options": {
+            "temperature": 0,
+            "top_k": 1,
+            "top_p": 1,
+            "repeat_penalty": 1.1,
+            "num_predict": 64
+            }
     }
+    
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
