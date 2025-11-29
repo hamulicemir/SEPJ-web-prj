@@ -200,18 +200,19 @@ $PROMPT$
     'classify',
     'v1',
     $PROMPT$
-Gib als Antwort ausschließlich eine Liste der passenden Vorfallstypen aus.
+Gib als Antwort ausschließlich die Beziechnung der passenden Vorfallstypen aus. Trifft mehr als ein Vorfallstyp zu so gib diese im Format einer JSON-Liste aus, z. B. ["Typ1", "Typ2"].
 
 WICHTIG:
-- Wenn der Text nur EINEN Vorfall eindeutig beschreibt, darfst du nur EINEN Typ nennen.
-- Wenn der Text explizit Brand beschreibt, gib ausschließlich "Brandstiftung" aus.
 - Wenn KEIN Vorfall sicher ist, gib eine LEERE Liste zurück.
+- Wenn der Text nur EINEN Vorfall eindeutig beschreibt, darfst du nur EINEN Typ nennen.
+- Verwende nur Vorfälle, welche unter *Vorfallstypen* aufgezählt werden.
 
 VERBOTEN:
 - keine Vermutungen
 - keine Interpretation
 - keine Kombinationen ohne klare Grundlage
 - keine Kategorien ausgeben, die NICHT ausdrücklich zutreffen
+- keine Vorfalltypen erfinden
 $PROMPT$
   ),
 
@@ -239,7 +240,9 @@ $$
 $$
 Im Folgenden findest du eine Liste sämtlicher möglicher Vorfallstypen.
 Jeder Typ enthält eine kurze Definition, typische Begriffe und mögliche Formulierungen.
-Verwende ausschließlich diese Informationen als Grundlage für die Entscheidung.$$
+Verwende ausschließlich diese Informationen als Grundlage für die Entscheidung.
+
+Vorfallstypen:$$
 ),
 
 
