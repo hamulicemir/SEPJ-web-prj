@@ -112,6 +112,12 @@ def load_incident_types():
         return [{"code": c, "name": c.capitalize(), "desc": ""} for c in fallback_codes]
 
 
+"""
+Wichtig:
+Du sollst konservativ und streng klassifizieren nur wenn eine Handlung eindeutig beschrieben ist, ordnest du sie zu.
+Wenn Unsicherheit besteht, wählst du keine oder weniger Kategorien.
+"""
+
 def build_prompt(text: str, types: list[dict]) -> str:
     type_lines = []
     for t in types:
@@ -124,64 +130,24 @@ def build_prompt(text: str, types: list[dict]) -> str:
     categories_str = "\n".join(type_lines)
 
     return f"""
-Du bist ein streng regelbasiertes Klassifikationsmodell.
-Ordne den Vorfalltext nur dann einem Vorfallstyp zu, wenn die Handlung klar und eindeutig beschrieben ist.
+Kontext:
+Du bist ein KI-Modell, das informelle Gefängnisvorfälle aus gesprochener Sprache analysiert für eine Justizanstalt.
+Deine Aufgabe ist es, klar erkennbare Handlungen in den Vorfällen zu identifizieren und diese einem passenden Vorfallstyp zuzuordnen. Verwende dabei den Kontext des Textes, um die Handlungen korrekt zu interpretieren.
 
 Vorfallstypen:
 {categories_str}
 
-Regeln (sehr wichtig):
-- Gib nur eine JSON-Liste der Codes zurück, z.B. ["diebstahl"] oder ["keiner"].
-- Wenn du dir UNSICHER bist: entscheide dich für WENIGER Kategorien.
-- Klassifiziere nur konkrete, beschriebene HANDLUNGEN (z.B. schlagen, etwas zerstören, etwas stehlen).
-- KEINE Klassifikation nur aufgrund von Stimmung, Beleidigungen, Unruhe oder möglichen Absichten.
-- Wenn kein Vorfallstyp eindeutig passt: ["keiner"].
-- Maximal 3 Codes, nur wenn alle klar zutreffen.
-- Keine Erklärungen, kein zusätzlicher Text, keine neuen Kategorien.
+Bitte liefere ausschließlich eine Liste der zutreffenden Vorfallstypen basierend auf den oben genannten Kategorien ohne weitere Angaben.
 
-Text:
-{text}
-
-Antwort (nur JSON-Liste der Codes):
-""".strip()
+Alles was davor war waren nur die Informationen die du für die Erkennung benötigst. Hier kommt der Text den du analysieren sollst:
+{text.strip()}
+"""
 
 '''
-def build_prompt(text: str, types: list[dict]) -> str:
-    """
-    Baut einen stabilen Prompt für Qwen 2.5 oder Llama.
-    Rückgabeformat: JSON-Liste der passenden Codes.
-    """
-
-    # Kategorien sauber auflisten
-    type_lines = []
-    for t in types:
-        desc = (t["desc"] or "").strip()
-        if len(desc) > 120:
-            desc = desc[:117] + "..."
-        type_lines.append(f"  - {t['code']},")
-
-    categories_str = "\n".join(type_lines)
-
-    return f"""
-        Du bist ein professionelles Klassifikationsmodell.
-        Ordne den folgenden Vorfalltext genau den zutreffenden Vorfallstypen zu.
-
-        **Alle möglichen Vorfallstypen:**
-        {categories_str}
-
-        **Wichtig:**
-        - Gib das Ergebnis **ausschließlich als **Liste der Codes** zurück.
-        - Wenn mehrere Kategorien passen, nenne mehrere.
-        - Keine Erklärungen, kein Fließtext, nur gültige Liste.
-
-        **Text:**
-        {text}
-
-        **Antwortformat:**
-        ["code1", "code2"]
-        """.strip()
+#Assistenzsystem der Justizanstalt
+#Art der Delikte erkennen. 
+#Auf Basis des Kontexts bewerten.
 '''
-
 
 # -----------------------------------------------------------------------------
 # Kern-Endpoint
@@ -216,11 +182,11 @@ async def analyze_incident(payload: AnalyzeRequest):
         "prompt": prompt,
         "stream": False,
         "options": {
-            "temperature": 0,
-            "top_k": 1,
-            "top_p": 1,
-            "repeat_penalty": 1.1,
-            "num_predict": 64
+            #"temperature": 0,
+            #"top_k": 1,
+            #"top_p": 1,
+            #"repeat_penalty": 1.1,
+            "num_predict": -1
             }
     }
     
