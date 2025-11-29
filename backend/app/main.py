@@ -84,6 +84,38 @@ async def llm_ping():
 # Hilfsfunktionen
 # -----------------------------------------------------------------------------
 
+
+def load_prompts(version: str = "v1") -> dict[str, str]:
+    """Lädt base_prompt, classify_rules_prompt und info_prompt als Dict."""
+    names = ["base_prompt", "classify_rules_prompt", "info_prompt"]
+    result = {}
+
+    query = text("""
+        SELECT name, content
+        FROM prompts
+        WHERE name = ANY(:names) AND version_tag = :version
+    """)
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            query,
+            {"names": names, "version": version}
+        ).fetchall()
+
+    if not rows:
+        raise RuntimeError("Keine Prompts in der Datenbank gefunden!")
+
+    for name, content in rows:
+        result[name] = content
+
+    # Sicherstellen, dass alle existieren
+    for n in names:
+        if n not in result:
+            raise ValueError(f"Prompt '{n}' fehlt in der Datenbank!")
+
+    return result
+
+
 def load_incident_types():
     """Lädt alle Vorfallstypen aus der Datenbank und gibt strukturierte Infos zurück."""
     try:
@@ -118,36 +150,41 @@ Du sollst konservativ und streng klassifizieren nur wenn eine Handlung eindeutig
 Wenn Unsicherheit besteht, wählst du keine oder weniger Kategorien.
 """
 
-def build_prompt(text: str, types: list[dict]) -> str:
+def build_prompt(text: str, types: list[dict], prompts: dict[str, str]) -> str:
+    """
+    prompts dict muss enthalten:
+        - base_prompt
+        - classify_rules_prompt
+        - info_prompt
+    """
+
+    # Kategorienliste bauen
     type_lines = []
     for t in types:
         desc = (t["desc"] or "").strip()
         name = (t["name"] or "").strip()
-        if len(desc) > 120:
-            desc = desc[:117] + "..."
         type_lines.append(f"- {name}: {desc}")
 
     categories_str = "\n".join(type_lines)
 
+    # Prompt-Bausteine einsetzen
+    base = prompts.get("base_prompt", "").strip()
+    classify = prompts.get("classify_rules_prompt", "").strip()
+    info = prompts.get("info_prompt", "").strip()
+
+    # Vollständigen LLM-Prompt bauen
     return f"""
-Kontext:
-Du bist ein KI-Modell, das informelle Gefängnisvorfälle aus gesprochener Sprache analysiert für eine Justizanstalt.
-Deine Aufgabe ist es, klar erkennbare Handlungen in den Vorfällen zu identifizieren und diese einem passenden Vorfallstyp zuzuordnen. Verwende dabei den Kontext des Textes, um die Handlungen korrekt zu interpretieren.
+{base}
 
 Vorfallstypen:
 {categories_str}
 
-Bitte liefere ausschließlich eine Liste der zutreffenden Vorfallstypen basierend auf den oben genannten Kategorien ohne weitere Angaben.
+{classify}
 
-Alles was davor war waren nur die Informationen die du für die Erkennung benötigst. Hier kommt der Text den du analysieren sollst:
+{info}
 {text.strip()}
 """
 
-'''
-#Assistenzsystem der Justizanstalt
-#Art der Delikte erkennen. 
-#Auf Basis des Kontexts bewerten.
-'''
 
 # -----------------------------------------------------------------------------
 # Kern-Endpoint
@@ -167,14 +204,20 @@ async def analyze_incident(payload: AnalyzeRequest):
     if not text.strip():
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
 
-    # Vorfallstypen aus DB
+     # 1) Vorfallstypen laden
     types = load_incident_types()
-    prompt = build_prompt(text, types)
+
+    # 2) Prompts aus Datenbank laden
+    prompts = load_prompts()
+
+    # 3) Finalen LLM-Prompt bauen
+    prompt = build_prompt(text, types, prompts)
+
     logger.info("Generierter Prompt für LLM:\n%s", prompt)
 
     base = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model = os.getenv("OLLAMA_MODEL", "gemma:2b")
-    model = "qwen2.5:3b"
+    #model = "qwen2.5:3b"
     url = f"{base}/api/generate"
 
     ollama_payload = {

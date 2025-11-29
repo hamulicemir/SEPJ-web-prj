@@ -180,6 +180,40 @@ VALUES
   ('diebstahl',         'witnesses',    'Gab es Zeugen?',                   'people[]', FALSE, 50)
 ON CONFLICT DO NOTHING;
 
+INSERT INTO prompts (name, purpose, version_tag, content)
+VALUES
+  (
+    'base_prompt',
+    'base',
+    'v1',
+    $PROMPT$
+Du bist ein KI-Modell, das informelle Gefängnisvorfälle aus gesprochener Sprache analysiert für eine Justizanstalt.
+Deine Aufgabe ist es, klar erkennbare Handlungen in den Vorfällen zu identifizieren und diese zuzuordnen. Verwende dabei den Kontext des Textes, um die Handlungen korrekt zu interpretieren.
+$PROMPT$
+  ),
+
+  (
+    'classify_rules_prompt',
+    'classify',
+    'v1',
+    $PROMPT$
+Bitte liefere ausschließlich eine Liste der zutreffenden Vorfallstypen basierend auf den oben genannten Kategorien ohne weitere Angaben.
+$PROMPT$
+  ),
+
+  (
+    'info_prompt',
+    'info',
+    'v1',
+    $PROMPT$
+Alles, was davor stand, waren nur Hintergrundinformationen.
+Hier kommt der Text, den du analysieren sollst:
+$PROMPT$
+  )
+ON CONFLICT DO NOTHING;
+
+
+
 -- ============================================================================
 -- SEED: Beispielhafte Rohberichte (mit mehreren Vorfällen)
 -- ============================================================================
