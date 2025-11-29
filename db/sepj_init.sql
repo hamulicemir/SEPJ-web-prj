@@ -128,7 +128,7 @@ VALUES
   ('einbruch',                'Einbruch',                'Unbefugtes Eindringen in ein Gebäude oder Raum', 'prompt_einbruch_v1'),
   ('sachbeschaedigung',       'Sachbeschädigung',        'Zerstörung oder Beschädigung fremden Eigentums', 'prompt_sach_v1'),
   ('koerperverletzung',       'Körperverletzung',        'Physische Auseinandersetzungen zwischen Personen', 'prompt_koerp_v1'),
-  ('brandstiftung',           'Brandstiftung',           'Vorsätzliches oder fahrlässiges Entzünden von Sachen', 'prompt_brand_v1'),
+  ('brandstiftung',           'Brandstiftung',           'Vorsätzliches oder fahrlässiges Entzünden von Sachen besser bekannt als Feuer legen', 'prompt_brand_v1'),
   ('selbstverletzung',        'Selbstverletzung',        'Selbstzugefügte Verletzungen', 'prompt_selbst_v1'),
   ('diebstahl',               'Diebstahl',               'Entwendung von fremdem Eigentum', 'prompt_diebstahl_v1'),
   ('bedrohung',               'Bedrohung',               'Aussprechen oder Androhen von Gewalt ohne unmittelbare körperliche Einwirkung', 'prompt_bedrohung_v1'),
@@ -187,8 +187,11 @@ VALUES
     'base',
     'v1',
     $PROMPT$
-Du bist ein KI-Modell, das informelle Gefängnisvorfälle aus gesprochener Sprache analysiert für eine Justizanstalt.
-Deine Aufgabe ist es, klar erkennbare Handlungen in den Vorfällen zu identifizieren und diese zuzuordnen. Verwende dabei den Kontext des Textes, um die Handlungen korrekt zu interpretieren.
+Du bist ein Analysemodell, das ausschließlich sicherheitsrelevante Vorfälle in österreichischen Justizanstalten klassifiziert.
+Du darfst ausschließlich Informationen verwenden, die explizit im Text vorhanden sind.
+Du darfst keine Kategorien erraten.
+Du darfst keine Kategorien vorschlagen, wenn die Beschreibung nicht eindeutig ist.
+Du darfst KEINE Inhalte erfinden.
 $PROMPT$
   ),
 
@@ -197,17 +200,56 @@ $PROMPT$
     'classify',
     'v1',
     $PROMPT$
-Bitte liefere ausschließlich eine Liste der zutreffenden Vorfallstypen basierend auf den oben genannten Kategorien ohne weitere Angaben.
+Gib als Antwort ausschließlich eine Liste der passenden Vorfallstypen aus.
+
+WICHTIG:
+- Wenn der Text nur EINEN Vorfall eindeutig beschreibt, darfst du nur EINEN Typ nennen.
+- Wenn der Text explizit Brand beschreibt, gib ausschließlich "Brandstiftung" aus.
+- Wenn KEIN Vorfall sicher ist, gib eine LEERE Liste zurück.
+
+VERBOTEN:
+- keine Vermutungen
+- keine Interpretation
+- keine Kombinationen ohne klare Grundlage
+- keine Kategorien ausgeben, die NICHT ausdrücklich zutreffen
 $PROMPT$
   ),
+
+  (
+  'task_prompt_incident_classification',
+  'task',
+  'v1',
+$$
+Du sollst ausschließlich den oder die Vorfallstypen identifizieren, die eindeutig und direkt aus dem Bericht hervorgehen.
+Ordne eine Kategorie nur dann zu, wenn ALLE folgenden Bedingungen erfüllt sind:
+
+1. die Handlung ist klar und explizit beschrieben
+2. der Text enthält eindeutige Wörter, Beschreibungen oder Hinweise
+3. es gibt keinen Interpretationsspielraum
+4. die Kategorie passt vollständig zur Definition
+
+Wenn nur ein einzelner Aspekt passt oder etwas unklar bleibt, dann ordne diese Kategorie NICHT zu.
+$$
+),
+
+(
+  'category_intro_prompt',
+  'category_intro',
+  'v1',
+$$
+Im Folgenden findest du eine Liste sämtlicher möglicher Vorfallstypen.
+Jeder Typ enthält eine kurze Definition, typische Begriffe und mögliche Formulierungen.
+Verwende ausschließlich diese Informationen als Grundlage für die Entscheidung.$$
+),
+
 
   (
     'info_prompt',
     'info',
     'v1',
     $PROMPT$
-Alles, was davor stand, waren nur Hintergrundinformationen.
-Hier kommt der Text, den du analysieren sollst:
+Nachfolgend findest du den Bericht, den du analysieren sollst.
+Lies ihn sorgfältig und wende die oben genannten Regeln an.
 $PROMPT$
   )
 ON CONFLICT DO NOTHING;
@@ -236,4 +278,5 @@ INSERT INTO raw_reports (title, body, source, language) VALUES
 
   ('Schnittverletzung beim Kochen',
    'Heute früh um 07:10 schnitt sich D versehentlich beim Schneiden am Finger. Der Schnitt wurde vor Ort versorgt.',
-   'note', 'de');
+   'note', 'de')
+   ON CONFLICT DO NOTHING;

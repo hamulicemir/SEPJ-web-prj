@@ -86,8 +86,13 @@ async def llm_ping():
 
 
 def load_prompts(version: str = "v1") -> dict[str, str]:
-    """Lädt base_prompt, classify_rules_prompt und info_prompt als Dict."""
-    names = ["base_prompt", "classify_rules_prompt", "info_prompt"]
+    names = [
+        "base_prompt",
+        "task_prompt_incident_classification",
+        "category_intro_prompt",
+        "classify_rules_prompt",
+        "info_prompt",
+    ]
     result = {}
 
     query = text("""
@@ -108,7 +113,6 @@ def load_prompts(version: str = "v1") -> dict[str, str]:
     for name, content in rows:
         result[name] = content
 
-    # Sicherstellen, dass alle existieren
     for n in names:
         if n not in result:
             raise ValueError(f"Prompt '{n}' fehlt in der Datenbank!")
@@ -143,32 +147,21 @@ def load_incident_types():
         ]
         return [{"code": c, "name": c.capitalize(), "desc": ""} for c in fallback_codes]
 
-
-"""
-Wichtig:
-Du sollst konservativ und streng klassifizieren nur wenn eine Handlung eindeutig beschrieben ist, ordnest du sie zu.
-Wenn Unsicherheit besteht, wählst du keine oder weniger Kategorien.
-"""
-
 def build_prompt(text: str, types: list[dict], prompts: dict[str, str]) -> str:
-    """
-    prompts dict muss enthalten:
-        - base_prompt
-        - classify_rules_prompt
-        - info_prompt
-    """
 
     # Kategorienliste bauen
     type_lines = []
     for t in types:
         desc = (t["desc"] or "").strip()
         name = (t["name"] or "").strip()
-        type_lines.append(f"- {name}: {desc}")
+        type_lines.append(f"{name}: {desc}")
 
     categories_str = "\n".join(type_lines)
 
     # Prompt-Bausteine einsetzen
     base = prompts.get("base_prompt", "").strip()
+    task = prompts.get("task_prompt_incident_classification", "").strip()
+    category_intro = prompts.get("category_intro_prompt", "").strip()
     classify = prompts.get("classify_rules_prompt", "").strip()
     info = prompts.get("info_prompt", "").strip()
 
@@ -176,12 +169,16 @@ def build_prompt(text: str, types: list[dict], prompts: dict[str, str]) -> str:
     return f"""
 {base}
 
-Vorfallstypen:
+{task}
+
+{category_intro}
+
 {categories_str}
 
 {classify}
 
 {info}
+
 {text.strip()}
 """
 
@@ -204,7 +201,7 @@ async def analyze_incident(payload: AnalyzeRequest):
     if not text.strip():
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
 
-     # 1) Vorfallstypen laden
+    # 1) Vorfallstypen laden
     types = load_incident_types()
 
     # 2) Prompts aus Datenbank laden
@@ -296,7 +293,9 @@ async def analyze_incident(payload: AnalyzeRequest):
     return {
         "status": "ok",
         "result": result,
+        "prompt": prompt,
         "model": model,
         "chars_in": len(text),
         "logged": True,
+       
     }
