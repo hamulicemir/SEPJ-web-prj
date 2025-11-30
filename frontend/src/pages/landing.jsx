@@ -58,16 +58,6 @@ export default function Landing() {
             </Button>
           </div>
         </Card>
-        {/* Prompt Debug Card */}
-        <Card className="w-full max-w-4xl bg-white shadow-md p-4">
-          <h2 className="text-2xl font-semibold mb-2 text-gray-800">
-            Generierter Prompt
-          </h2>
-
-          <div className="whitespace-pre-wrap text-gray-700">
-            {prompt || "Noch kein Prompt generiert."}
-          </div>
-        </Card>
         {/* Ausgabe Card */}
         <Card className="w-full max-w-4xl bg-white shadow-md p-2">
           <h2 className="text-2xl font-semibold mb-2 text-gray-800">
@@ -76,6 +66,16 @@ export default function Landing() {
 
           <div className="whitespace-pre-wrap text-gray-700">
             {response || "Noch keine Analyse durchgeführt."}
+          </div>
+        </Card>
+         {/* Prompt Debug Card */}
+        <Card className="w-full max-w-4xl bg-white shadow-md p-4">
+          <h2 className="text-2xl font-semibold mb-2 text-gray-800">
+            Generierter Prompt
+          </h2>
+
+          <div className="whitespace-pre-wrap text-gray-700">
+            {prompt || "Noch kein Prompt generiert."}
           </div>
         </Card>
       </div>
