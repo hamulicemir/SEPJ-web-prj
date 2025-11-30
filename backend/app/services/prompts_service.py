@@ -27,7 +27,8 @@ def load_prompts(version="v1") -> dict[str, str]:
     return result
 
 def build_prompt(text: str, types: list[dict], prompts: dict[str, str]) -> str:
-    type_lines = [f"{t['name']}: {t['desc']}" for t in types]
+    type_lines = [f"'{t['name']}': {t['desc']}""" for t in types]
+
     categories_str = "\n".join(type_lines)
 
     return f"""

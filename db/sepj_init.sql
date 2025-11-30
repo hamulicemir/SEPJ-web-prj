@@ -177,7 +177,12 @@ VALUES
   ('diebstahl',         'where',        'Wo passierte es?',                 'string',   TRUE, 20),
   ('diebstahl',         'who_involved', 'Wer war beteiligt?',               'people[]', TRUE, 30),
   ('diebstahl',         'consequences', 'Was wurde entwendet?',             'string',   TRUE, 40),
-  ('diebstahl',         'witnesses',    'Gab es Zeugen?',                   'people[]', FALSE, 50)
+  ('diebstahl',         'witnesses',    'Gab es Zeugen?',                   'people[]', FALSE, 50),
+
+  ('alkohol_drogen', 'when',         'Wann fiel das Verhalten auf?',     'datetime', TRUE, 10),
+  ('alkohol_drogen', 'where',        'Wo fiel das Verhalten auf?',       'string',   TRUE, 20),
+  ('alkohol_drogen', 'who_involved', 'Wer war beteiligt?',               'people[]', TRUE, 30),
+  ('alkohol_drogen', 'consequences', 'Welche Folgen gab es?',           'string',   TRUE, 40)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO prompts (name, purpose, version_tag, content)
