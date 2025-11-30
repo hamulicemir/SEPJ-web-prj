@@ -6,10 +6,12 @@ import Navbar from "./components/Navbar.jsx";
 
 export default function App() {
   const [message, setMessage] = useState("");
+  const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const analyzeReport = async () => {
     setLoading(true);
+    setPrompt("");
     setResponse("");
 
     try {
@@ -18,6 +20,7 @@ export default function App() {
       });
 
       setResponse(res.data.result);
+      setPrompt(res.data.prompt)
     } catch (err) {
       console.error(err);
       setResponse("Fehler beim Abruf der Analyse.");
@@ -55,6 +58,16 @@ export default function App() {
             >
               {loading ? "Analysiere..." : "Bericht analysieren"}
             </Button>
+          </div>
+        </Card>
+        {/* Prompt Debug Card */}
+        <Card className="w-full max-w-4xl bg-white shadow-md p-4">
+          <h2 className="text-2xl font-semibold mb-2 text-gray-800">
+            Generierter Prompt
+          </h2>
+
+          <div className="whitespace-pre-wrap text-gray-700">
+            {prompt || "Noch kein Prompt generiert."}
           </div>
         </Card>
         {/* Ausgabe Card */}

@@ -125,12 +125,16 @@ CREATE TABLE IF NOT EXISTS prompts (
 -- ============================================================================
 INSERT INTO incident_types (code, name, description, prompt_ref)
 VALUES
-  ('einbruch',          'Einbruch',          'Unbefugtes Eindringen in ein Gebäude oder Raum', 'prompt_einbruch_v1'),
-  ('sachbeschaedigung', 'Sachbeschädigung',  'Zerstörung oder Beschädigung fremden Eigentums', 'prompt_sach_v1'),
-  ('koerperverletzung', 'Körperverletzung',  'Physische Auseinandersetzungen zwischen Personen', 'prompt_koerp_v1'),
-  ('brandstiftung',     'Brandstiftung',     'Vorsätzliches oder fahrlässiges Entzünden von Sachen', 'prompt_brand_v1'),
-  ('selbstverletzung',  'Selbstverletzung',  'Selbstzugefügte Verletzungen', 'prompt_selbst_v1'),
-  ('diebstahl',         'Diebstahl',         'Entwendung von fremdem Eigentum', 'prompt_diebstahl_v1')
+  ('einbruch',                'Einbruch',                'Unbefugtes Eindringen in ein Gebäude oder Raum', 'prompt_einbruch_v1'),
+  ('sachbeschaedigung',       'Sachbeschädigung',        'Zerstörung oder Beschädigung fremden Eigentums', 'prompt_sach_v1'),
+  ('koerperverletzung',       'Körperverletzung',        'Physische Auseinandersetzungen zwischen Personen', 'prompt_koerp_v1'),
+  ('brandstiftung',           'Brandstiftung',           'Vorsätzliches oder fahrlässiges Entzünden von Sachen besser bekannt als Feuer legen', 'prompt_brand_v1'),
+  ('selbstverletzung',        'Selbstverletzung',        'Selbstzugefügte Verletzungen', 'prompt_selbst_v1'),
+  ('diebstahl',               'Diebstahl',               'Entwendung von fremdem Eigentum', 'prompt_diebstahl_v1'),
+  ('bedrohung',               'Bedrohung',               'Aussprechen oder Androhen von Gewalt ohne unmittelbare körperliche Einwirkung', 'prompt_bedrohung_v1'),
+  ('noetigung',               'Nötigung',                'Zwang zur Handlung, Duldung oder Unterlassung ohne direkte Gewaltanwendung', 'prompt_noetigung_v1'),
+  ('belaestigung',             'Belästigung',             'Unerwünschte, aufdringliche oder störende Handlungen gegenüber einer Person', 'prompt_belaest_v1'),
+  ('alkohol_drogen',          'Alkohol/Drogen',          'Vorfall mit auffälligem Verhalten oder Gefährdung durch Rauschmittel', 'prompt_alkdro_v1')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -173,8 +177,92 @@ VALUES
   ('diebstahl',         'where',        'Wo passierte es?',                 'string',   TRUE, 20),
   ('diebstahl',         'who_involved', 'Wer war beteiligt?',               'people[]', TRUE, 30),
   ('diebstahl',         'consequences', 'Was wurde entwendet?',             'string',   TRUE, 40),
-  ('diebstahl',         'witnesses',    'Gab es Zeugen?',                   'people[]', FALSE, 50)
+  ('diebstahl',         'witnesses',    'Gab es Zeugen?',                   'people[]', FALSE, 50),
+
+  ('alkohol_drogen', 'when',         'Wann fiel das Verhalten auf?',     'datetime', TRUE, 10),
+  ('alkohol_drogen', 'where',        'Wo fiel das Verhalten auf?',       'string',   TRUE, 20),
+  ('alkohol_drogen', 'who_involved', 'Wer war beteiligt?',               'people[]', TRUE, 30),
+  ('alkohol_drogen', 'consequences', 'Welche Folgen gab es?',           'string',   TRUE, 40)
 ON CONFLICT DO NOTHING;
+
+INSERT INTO prompts (name, purpose, version_tag, content)
+VALUES
+  (
+    'base_prompt',
+    'base',
+    'v1',
+    $PROMPT$
+Du bist ein Analysemodell, das ausschließlich sicherheitsrelevante Vorfälle in österreichischen Justizanstalten klassifiziert.
+Du darfst ausschließlich Informationen verwenden, die explizit im Text vorhanden sind.
+Du darfst keine Kategorien erraten.
+Du darfst keine Kategorien vorschlagen, wenn die Beschreibung nicht eindeutig ist.
+Du darfst KEINE Inhalte erfinden.
+$PROMPT$
+  ),
+
+  (
+    'classify_rules_prompt',
+    'classify',
+    'v1',
+    $PROMPT$
+Gib als Antwort ausschließlich die Beziechnung der passenden Vorfallstypen aus. Trifft mehr als ein Vorfallstyp zu so gib diese im Format einer JSON-Liste aus, z. B. ["Typ1", "Typ2"].
+
+WICHTIG:
+- Wenn KEIN Vorfall sicher ist, gib eine LEERE Liste zurück.
+- Wenn der Text nur EINEN Vorfall eindeutig beschreibt, darfst du nur EINEN Typ nennen.
+- Verwende nur Vorfälle, welche unter *Vorfallstypen* aufgezählt werden.
+
+VERBOTEN:
+- keine Vermutungen
+- keine Interpretation
+- keine Kombinationen ohne klare Grundlage
+- keine Kategorien ausgeben, die NICHT ausdrücklich zutreffen
+- keine Vorfalltypen erfinden
+$PROMPT$
+  ),
+
+  (
+  'task_prompt_incident_classification',
+  'task',
+  'v1',
+$$
+Du sollst ausschließlich den oder die Vorfallstypen identifizieren, die eindeutig und direkt aus dem Bericht hervorgehen.
+Ordne eine Kategorie nur dann zu, wenn ALLE folgenden Bedingungen erfüllt sind:
+
+1. die Handlung ist klar und explizit beschrieben
+2. der Text enthält eindeutige Wörter, Beschreibungen oder Hinweise
+3. es gibt keinen Interpretationsspielraum
+4. die Kategorie passt vollständig zur Definition
+
+Wenn nur ein einzelner Aspekt passt oder etwas unklar bleibt, dann ordne diese Kategorie NICHT zu.
+$$
+),
+
+(
+  'category_intro_prompt',
+  'category_intro',
+  'v1',
+$$
+Im Folgenden findest du eine Liste sämtlicher möglicher Vorfallstypen.
+Jeder Typ enthält eine kurze Definition, typische Begriffe und mögliche Formulierungen.
+Verwende ausschließlich diese Informationen als Grundlage für die Entscheidung.
+
+Vorfallstypen:$$
+),
+
+
+  (
+    'info_prompt',
+    'info',
+    'v1',
+    $PROMPT$
+Nachfolgend findest du den Bericht, den du analysieren sollst.
+Lies ihn sorgfältig und wende die oben genannten Regeln an.
+$PROMPT$
+  )
+ON CONFLICT DO NOTHING;
+
+
 
 -- ============================================================================
 -- SEED: Beispielhafte Rohberichte (mit mehreren Vorfällen)
@@ -198,4 +286,5 @@ INSERT INTO raw_reports (title, body, source, language) VALUES
 
   ('Schnittverletzung beim Kochen',
    'Heute früh um 07:10 schnitt sich D versehentlich beim Schneiden am Finger. Der Schnitt wurde vor Ort versorgt.',
-   'note', 'de');
+   'note', 'de')
+   ON CONFLICT DO NOTHING;
