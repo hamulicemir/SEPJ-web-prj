@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import { Label, Textarea, Card, Button } from "flowbite-react";
 import axios from "axios";
 
-export default function Landing() {
+import Navbar from "./components/Navbar.jsx";
+
+export default function App() {
   const [message, setMessage] = useState("");
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState("");
