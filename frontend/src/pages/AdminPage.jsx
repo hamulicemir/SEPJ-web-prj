@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PromptManager from "../components/admin/PromptManager";
 import IncidentTypeManager from "../components/admin/IncidentTypeManager";
+import QuestionsManager from "../components/admin/QuestionsManager.jsx";
 import { Button } from "flowbite-react";
 
 export default function AdminPage() {
@@ -24,11 +25,18 @@ export default function AdminPage() {
         >
           Vorfallstypen
         </Button>
+        <Button
+          color={activeTab === "questions" ? "blue" : "gray"}
+          onClick={() => setActiveTab("questions")}
+        >
+          Fragen
+        </Button>
       </div>
 
       {/* DYNAMIC CONTENT */}
       {activeTab === "prompts" && <PromptManager />}
       {activeTab === "incidentTypes" && <IncidentTypeManager />}
+      {activeTab === "questions" && <QuestionsManager />}
     </div>
   );
 }
