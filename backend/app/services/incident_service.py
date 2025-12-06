@@ -1,7 +1,7 @@
 # app/services/incident_service.py
 import sqlalchemy as sa
 import logging
-from app.db import engine
+from app.db.session import engine
 
 logger = logging.getLogger(__name__)
 

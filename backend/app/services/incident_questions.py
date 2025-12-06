@@ -1,6 +1,6 @@
 # app/services/incident_questions.py
 import sqlalchemy as sa
-from app.db import engine
+from app.db.session import engine
 import logging
 
 def load_incident_questions():
