@@ -1,108 +1,233 @@
-import { useState } from "react";
-import { Card, Textarea, TextInput, Button } from "flowbite-react";
-import { mockIncidentTypes } from "../../mock/incidentTypes";
+import { useState, useEffect } from "react";
+import { Card, TextInput, Textarea, Button, Modal } from "flowbite-react";
 
 export default function IncidentTypeManager() {
-  const [items, setItems] = useState(mockIncidentTypes);
+  const [types, setTypes] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const [form, setForm] = useState({
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+
+  const [formData, setFormData] = useState({
+    code: "",
     name: "",
     description: "",
     prompt_ref: "",
   });
 
-  const handleSelect = (item) => {
-    setSelected(item);
+  useEffect(() => {
+    fetchTypes();
+  }, []);
 
-    setForm({
-      name: item.name,
-      description: item.description,
-      prompt_ref: item.prompt_ref,
-    });
+  const fetchTypes = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/config/types");
+      if (res.ok) setTypes(await res.json());
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleSave = () => {
-    console.log("SAVE INCIDENT TYPE TO BACKEND:", {
-      code: selected.code,
-      ...form,
-    });
+  const handleSelect = (t) => {
+    setIsCreating(false);
+    setSelected(t);
+    setFormData(t);
+  };
 
-    setItems((prev) =>
-      prev.map((i) =>
-        i.code === selected.code ? { ...i, ...form } : i
-      )
-    );
+  const handleCreateNew = () => {
+    setSelected(null);
+    setIsCreating(true);
+    setFormData({ code: "", name: "", description: "", prompt_ref: "" });
+  };
+
+  const handleCancel = () => {
+    setIsCreating(false);
+    setSelected(null);
+    setFormData({ code: "", name: "", description: "", prompt_ref: "" });
+  };
+
+  const confirmDelete = (code) => {
+    setDeleteCandidate(code);
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteCandidate) return;
+    try {
+      await fetch(`http://localhost:8000/api/config/types/${deleteCandidate}`, {
+        method: "DELETE",
+      });
+      await fetchTypes();
+      handleCancel();
+    } catch (e) {
+      alert("Fehler beim Löschen");
+    } finally {
+      setShowDeleteModal(false);
+      setDeleteCandidate(null);
+    }
+  };
+
+  const handleSave = async () => {
+    if (isCreating && !formData.code.trim()) {
+      alert("Bitte einen Code eingeben.");
+      return;
+    }
+
+    const url = isCreating
+      ? "http://localhost:8000/api/config/types"
+      : `http://localhost:8000/api/config/types/${formData.code}`;
+
+    try {
+      const res = await fetch(url, {
+        method: isCreating ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (res.ok) {
+        await fetchTypes();
+        if (isCreating) {
+          alert("Erstellt!");
+          handleCancel();
+        } else {
+          alert("Gespeichert!");
+        }
+      } else {
+        alert("Fehler beim Speichern");
+      }
+    } catch (e) {
+      alert("Netzwerkfehler");
+    }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* LEFT */}
-      <Card className="md:col-span-1">
-        <h2 className="text-xl font-bold mb-3">Vorfallstypen</h2>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* LISTE */}
+        <Card className="md:col-span-1">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold">Typen</h2>
+            <Button size="xs" color="success" onClick={handleCreateNew}>
+              + Neu
+            </Button>
+          </div>
+          <div className="space-y-2 overflow-y-auto h-96 pr-2">
+            {types.map((t) => (
+              <div
+                key={t.code}
+                onClick={() => handleSelect(t)}
+                className={`p-2 border rounded cursor-pointer hover:bg-gray-50 
+                  ${
+                    selected?.code === t.code
+                      ? "bg-blue-50 border-blue-500"
+                      : ""
+                  }
+                `}
+              >
+                <div className="font-bold">{t.name}</div>
+                <div className="text-xs text-gray-500 truncate">{t.code}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
 
-        <div className="space-y-2">
-          {items.map((i) => (
-            <button
-              key={i.code}
-              onClick={() => handleSelect(i)}
-              className={`w-full text-left px-3 py-2 rounded border 
-                ${selected?.code === i.code ? "bg-blue-100 border-blue-400" : "border-gray-300"}
-              `}
-            >
-              <div className="font-semibold">{i.name}</div>
-              <div className="text-sm text-gray-600">{i.code}</div>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* RIGHT */}
-      <Card className="md:col-span-2 p-4">
-        {selected ? (
-          <>
-            <h2 className="text-xl font-bold mb-3">{selected.name} bearbeiten</h2>
-
-            <div className="space-y-4">
+        {/* EDITOR */}
+        <Card className="md:col-span-2">
+          {selected || isCreating ? (
+            <div className="flex flex-col gap-4">
+              <h2 className="text-xl font-bold border-b pb-2">
+                {isCreating
+                  ? "Neuen Typ anlegen"
+                  : `Bearbeiten: ${selected.name}`}
+              </h2>
 
               <div>
-                <label className="font-semibold">Name</label>
+                <label className="block text-sm font-medium mb-1">
+                  Code (ID)
+                </label>
                 <TextInput
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  value={formData.code}
+                  onChange={(e) =>
+                    setFormData({ ...formData, code: e.target.value })
+                  }
+                  disabled={!isCreating}
+                  placeholder="z.B. water_damage"
                 />
               </div>
 
               <div>
-                <label className="font-semibold">Beschreibung</label>
+                <label className="block text-sm font-medium mb-1">Name</label>
+                <TextInput
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Beschreibung
+                </label>
                 <Textarea
+                  value={formData.description || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   rows={4}
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
                 />
               </div>
 
-              <div>
-                <label className="font-semibold">Prompt-Referenz</label>
-                <TextInput
-                  value={form.prompt_ref}
-                  onChange={(e) =>
-                    setForm({ ...form, prompt_ref: e.target.value })
-                  }
-                />
+              <div className="flex justify-between mt-4 pt-4 border-t">
+                <Button color="gray" onClick={handleCancel}>
+                  Abbrechen
+                </Button>
+                <div className="flex gap-2">
+                  {!isCreating && (
+                    <Button
+                      color="failure"
+                      onClick={() => confirmDelete(formData.code)}
+                    >
+                      Löschen
+                    </Button>
+                  )}
+                  <Button onClick={handleSave} color="blue">
+                    {isCreating ? "Erstellen" : "Speichern"}
+                  </Button>
+                </div>
               </div>
-
-              <Button color="blue" onClick={handleSave}>
-                Speichern
-              </Button>
             </div>
-          </>
-        ) : (
-          <p className="text-gray-500">Bitte einen Vorfallstyp auswählen.</p>
-        )}
-      </Card>
-    </div>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400 min-h-[200px]">
+              Wähle einen Typ oder erstelle einen neuen.
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* FLOWBITE MODAL (ersetzt Custom-Modal) */}
+      <Modal
+        show={showDeleteModal}
+        size="md"
+        popup
+        onClose={() => setShowDeleteModal(false)}
+      >
+        <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-auto">
+          <h3 className="text-lg font-normal text-gray-500 mb-6 text-center">
+            Wirklich löschen?
+          </h3>
+          <div className="flex justify-center gap-4">
+            <Button color="failure" onClick={executeDelete}>
+              Ja, löschen
+            </Button>
+            <Button color="gray" onClick={() => setShowDeleteModal(false)}>
+              Abbrechen
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
