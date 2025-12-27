@@ -15,7 +15,7 @@ from app.services.incident_questions import load_incident_questions
 from app.services.incident_questions import load_incident_questions_for_types
 from app.services.load_incident_type_mapping import load_incident_type_mapping
 from app.db.session import get_db
-from app.models.db_models import RawReport, Incident, StructuredAnswer, LLMRun
+from app.models.db_models import RawReport, Incident, StructuredAnswer, LLMRun, FinalReport
 from app.services.persistence_service import (
     create_raw_report,
     create_incidents_for_types,
@@ -264,11 +264,81 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
     db.commit()
 
     # -----------------------------------------------------------------------
-    # 11) Antwort zurückgeben
+    # 11) Formalen Bericht generieren
+    # -----------------------------------------------------------------------
+    logger.info("Generiere formalen Abschlussbericht...")
+
+    # Summarize facts
+    facts_summary = ""
+    for inc_type, facts in answers.items():
+        facts_summary += f"\n[Vorfall: {inc_type.upper()}]\n"
+        for key, value in facts.items():
+            facts_summary += f"- {key}: {value}\n"
+
+    # Already used prompt for formal report generation
+    writer_prompt = f"""
+Du bist ein Polizeibeamter. Schreibe einen formalen, sachlichen Bericht (Fließtext) basierend auf dem folgenden Sachverhalt und den extrahierten Fakten.
+
+Original-Text:
+"{text}"
+
+Bestätigte Fakten:
+{facts_summary}
+
+Anweisungen:
+- Schreibe im passiven Beamtendeutsch (z.B. "wurde festgestellt", "ereignete sich").
+- Fasse das Geschehen chronologisch zusammen.
+- Erwähne alle beteiligten Personen und Zeiten.
+- Keine Aufzählungszeichen, nur Fließtext.
+"""
+
+    final_report_text = ""
+    
+    try:
+        start_ts = time.time()
+        
+        # Get text 
+        final_report_text = await call_ollama(model_name, base_url, writer_prompt)
+        
+        latency_ms = int((time.time() - start_ts) * 1000)
+
+        # Save final report in db
+        if incident_rows:
+            primary_incident = incident_rows[0]
+            
+            final_rep_entry = FinalReport(
+                incident_id=primary_incident.id,
+                body_md=final_report_text,
+                model_name=model_name,
+                created_by=None 
+            )
+            db.add(final_rep_entry)
+            db.commit()
+            
+            logger.info("Final Report gespeichert: %s", final_rep_entry.id)
+            
+            create_llm_run(
+                db,
+                purpose="write_final_report",
+                model_name=model_name,
+                request_payload={"prompt": writer_prompt},
+                response_payload={"response": final_report_text},
+                report_id=raw_report.id,
+                incident_id=primary_incident.id,
+                latency_ms=latency_ms,
+            )
+
+    except Exception as e:
+        logger.error("Fehler bei der Berichts-Generierung: %r", e)
+        final_report_text = "Fehler: Bericht konnte nicht generiert werden."
+
+    # -----------------------------------------------------------------------
+    # 12) Antwort zurückgeben
     # -----------------------------------------------------------------------
     return {
         "status": "ok",
         "result": result,
+        "final_report": final_report_text,
         "prompt": final_prompt,
         "model": model_name,
         "chars_in": len(text),
