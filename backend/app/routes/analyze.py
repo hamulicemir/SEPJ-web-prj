@@ -263,22 +263,19 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
 
     db.commit()
 
-    # ... (Dein Code nach dem Loop über die Fragen und db.commit() ...)
-
     # -----------------------------------------------------------------------
     # 11) Formalen Bericht generieren
     # -----------------------------------------------------------------------
     logger.info("Generiere formalen Abschlussbericht...")
 
-    # A) Fakten für den Prompt zusammenfassen (String bauen)
+    # Summarize facts
     facts_summary = ""
     for inc_type, facts in answers.items():
         facts_summary += f"\n[Vorfall: {inc_type.upper()}]\n"
         for key, value in facts.items():
             facts_summary += f"- {key}: {value}\n"
 
-    # B) Der Prompt für den Schreiber
-    # Wir nutzen strict den existierenden Stil: F-String mit Kontext.
+    # Already used prompt for formal report generation
     writer_prompt = f"""
 Du bist ein Polizeibeamter. Schreibe einen formalen, sachlichen Bericht (Fließtext) basierend auf dem folgenden Sachverhalt und den extrahierten Fakten.
 
@@ -300,14 +297,12 @@ Anweisungen:
     try:
         start_ts = time.time()
         
-        # Wir nutzen die existierende Funktion call_ollama (gibt nur Text zurück)
-        # Falls du Meta-Daten willst, nimm call_ollama_with_meta (wie oben)
+        # Get text 
         final_report_text = await call_ollama(model_name, base_url, writer_prompt)
         
         latency_ms = int((time.time() - start_ts) * 1000)
 
-        # C) Speichern in der DB (FinalReport)
-        # Wir verknüpfen den Bericht mit dem ersten gefundenen Incident (Haupt-Delikt)
+        # Save final report in db
         if incident_rows:
             primary_incident = incident_rows[0]
             
@@ -321,8 +316,7 @@ Anweisungen:
             db.commit()
             
             logger.info("Final Report gespeichert: %s", final_rep_entry.id)
-
-            # D) Auch diesen Schritt loggen (Konsistenz wahren!)
+            
             create_llm_run(
                 db,
                 purpose="write_final_report",

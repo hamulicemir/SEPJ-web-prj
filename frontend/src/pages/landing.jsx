@@ -6,7 +6,7 @@ export default function Landing() {
   const [message, setMessage] = useState("");
   const [prompt, setPrompt] = useState("");
 
-  // ÄNDERUNG 1: Initialwert null, damit wir wissen, wann wir Daten haben
+  // initial value "null", to know when we have data
   const [response, setResponse] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -21,12 +21,11 @@ export default function Landing() {
         text: message,
       });
 
-      // ÄNDERUNG 2: Wir speichern das ganze Objekt (res.data), um auf .final_report zuzugreifen
       setResponse(res.data);
       setPrompt(res.data.prompt);
     } catch (err) {
       console.error(err);
-      // Fallback bei Fehler: Ein einfaches Objekt, damit die Anzeige nicht crasht
+      // Fallback when Error: simple object, to prevent the display from crashing
       setResponse({ final_report: "Fehler beim Abruf der Analyse." });
     } finally {
       setLoading(false);
@@ -37,7 +36,7 @@ export default function Landing() {
     <div className="min-h-screen bg-gray-50 text-gray-900" data-theme="light">
       <div className="flex flex-col items-center justify-center px-6 py-10 space-y-8 pt-4">
 
-        {/* Eingabe Card (Unverändert) */}
+        {/* Eingabe Card*/}
         <Card className="w-full max-w-4xl bg-white shadow-lg p-10 min-h-[50vh]">
           <h1 className="text-3xl font-semibold mb-2 text-gray-800">
             Texteingabe des Berichts
@@ -65,7 +64,7 @@ export default function Landing() {
           </div>
         </Card>
 
-        {/* Ausgabe Card (Angepasst für formalen Bericht) */}
+        {/* Ausgabe Card */}
         <Card className="w-full max-w-4xl bg-white shadow-md p-2">
           <h2 className="text-2xl font-semibold mb-2 text-gray-800">
             Berichtsausgabe
@@ -73,13 +72,11 @@ export default function Landing() {
 
           <div className="text-gray-700">
             {!response ? (
-              // Fall 1: Noch nichts passiert
               <p>Noch keine Analyse durchgeführt.</p>
             ) : (
-              // Fall 2: Ergebnis ist da
               <div className="space-y-6">
 
-                {/* A) Der formale Bericht (Das Wichtigste) */}
+                {/* formal Report*/}
                 {response.final_report && (
                   <div className="bg-gray-50 p-4 rounded border border-gray-200">
                     <h3 className="font-bold text-gray-800 mb-2">Formaler Polizeibericht</h3>
@@ -89,13 +86,13 @@ export default function Landing() {
                   </div>
                 )}
 
-                {/* B) Fakten & Klassifikation (Optional darunter) */}
+                {/* B) facts & classification */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                  {/* Klassifikation */}
+                  {/* classification */}
                   {response.result && (
                     <div className="bg-blue-50 p-3 rounded border border-blue-100">
-                      <strong className="block text-blue-800 mb-1">🔍 Klassifikation:</strong>
+                      <strong className="block text-blue-800 mb-1">Klassifikation:</strong>
                       <div className="flex flex-wrap gap-1">
                         {Array.isArray(response.result) ? response.result.map((r, i) => (
                           <span key={i} className="bg-white px-2 py-0.5 rounded text-sm border border-blue-200">{r}</span>
@@ -104,10 +101,10 @@ export default function Landing() {
                     </div>
                   )}
 
-                  {/* Fakten / Antworten */}
+                  {/* facts / replies */}
                   {response.answers && (
                     <div className="bg-yellow-50 p-3 rounded border border-yellow-100">
-                      <strong className="block text-yellow-800 mb-1">🧩 Details:</strong>
+                      <strong className="block text-yellow-800 mb-1">Details:</strong>
                       <div className="text-sm space-y-2">
                         {Object.entries(response.answers).map(([type, facts]) => (
                           <div key={type}>
@@ -129,7 +126,7 @@ export default function Landing() {
           </div>
         </Card>
 
-        {/* Prompt Debug Card (Unverändert) */}
+        {/* Prompt Debug Card */}
         <Card className="w-full max-w-4xl bg-white shadow-md p-4">
           <h2 className="text-2xl font-semibold mb-2 text-gray-800">
             Generierter Prompt
