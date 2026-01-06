@@ -277,7 +277,7 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
             facts_summary += f"- {key}: {value}\n"
 
     # -----------------------------------------------------------------------
-    # Prompt für den formalen Bericht definieren
+    # Prompt für den formalen Bericht definieren (One-shot Prompting)
     # -----------------------------------------------------------------------
     writer_prompt = f"""
 Du bist ein erfahrener Polizeibeamter. Verfasse einen formalen, sachlichen Bericht (Fließtext) basierend auf den Daten.
@@ -358,7 +358,7 @@ POM Mustermann
         # -------------------------------------------------------
         # Datum vom Anfang des Textes extrahieren
         # -------------------------------------------------------
-        report_date_found = datetime.now().strftime('%d.%m.%Y') # Fallback: Heute
+        report_date_found = datetime.now().strftime('%d.%m.%Y') # Fallback: Today
         
         header_part = text[200:] 
         date_match = re.search(r'(\d{1,2}\.\s*[a-zA-ZäöüÄÖÜ]+\s*\d{4}|\d{1,2}\.\d{1,2}\.\d{4})', header_part)
