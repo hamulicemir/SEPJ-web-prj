@@ -4,3 +4,4 @@ sqlalchemy
 python-dotenv
 psycopg[binary]
 httpx
+reportlab

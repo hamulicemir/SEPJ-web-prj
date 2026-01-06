@@ -1,140 +1,204 @@
-import React, { useState } from "react";
-import { Label, Textarea, Card, Button } from "flowbite-react";
-import axios from "axios";
+import { useState, useEffect } from "react";
+import ReportModal from "../components/ReportModal";
+import HistoryItem from "../components/HistoryItem";
 
-export default function Landing() {
-  const [message, setMessage] = useState("");
-  const [prompt, setPrompt] = useState("");
-
-  // initial value "null", to know when we have data
+export default function LandingPage() {
+  const [text, setText] = useState("");
   const [response, setResponse] = useState(null);
-
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
 
-  const analyzeReport = async () => {
+  const fetchHistory = () => {
+    fetch("http://localhost:8000/api/reports/history")
+      .then((res) => res.json())
+      .then((data) => setHistory(data))
+      .catch((err) => console.error("Fehler beim Laden der History:", err));
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const handleAnalyze = async () => {
+    console.log("Analyse gestartet...");
+
+    if (!text.trim()) {
+      alert("Bitte Text eingeben!");
+      return;
+    }
+
     setLoading(true);
-    setPrompt("");
     setResponse(null);
 
     try {
-      const res = await axios.post("http://localhost:8000/api/llm/analyze", {
-        text: message,
+      const res = await fetch("http://localhost:8000/api/llm/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
       });
 
-      setResponse(res.data);
-      setPrompt(res.data.prompt);
-    } catch (err) {
-      console.error(err);
-      // Fallback when Error: simple object, to prevent the display from crashing
-      setResponse({ final_report: "Fehler beim Abruf der Analyse." });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || "Fehler bei der Analyse");
+      }
+
+      const data = await res.json();
+      setResponse(data);
+      fetchHistory();
+    } catch (error) {
+      console.error(error);
+      alert("Fehler: " + error.message);
+      setResponse({ final_report: "Fehler: " + error.message });
     } finally {
       setLoading(false);
     }
   };
 
+  const restoreReport = (report) => {
+    setText(report.full_text || "");
+    setResponse(null);
+    setSelectedReport(null);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900" data-theme="light">
-      <div className="flex flex-col items-center justify-center px-6 py-10 space-y-8 pt-4">
+    // FIX: calc(100vh - NavbarHöhe)
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50 font-sans">
+      <ReportModal
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+        onRestore={restoreReport}
+      />
 
-        {/* Eingabe Card*/}
-        <Card className="w-full max-w-4xl bg-white shadow-lg p-10 min-h-[50vh]">
-          <h1 className="text-3xl font-semibold mb-2 text-gray-800">
-            Texteingabe des Berichts
-          </h1>
+      {/* --- SIDEBAR --- */}
+      <div className="w-80 2xl:w-96 bg-white border-r border-gray-200 flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300">
+        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+          <h2 className="font-bold text-gray-700 2xl:text-lg">Verlauf</h2>
+          <button
+            onClick={fetchHistory}
+            className="text-blue-600 hover:text-blue-800 text-xs 2xl:text-sm"
+          >
+            ↻
+          </button>
+        </div>
 
-          <div className="flex flex-col gap-3">
-            <Label htmlFor="message" value="Your message" className="text-lg" />
-            <Textarea
-              id="message"
-              rows={12}
-              placeholder="Write your thoughts here..."
-              className="min-h-[40vh] bg-white !text-gray-900 border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end mt-1">
-            <Button
-              color="blue"
-              onClick={analyzeReport}
-              disabled={!message.trim() || loading}
-            >
-              {loading ? "Analysiere..." : "Bericht analysieren"}
-            </Button>
-          </div>
-        </Card>
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {history.length === 0 ? (
+            <div className="p-4 text-center text-sm text-gray-400">
+              Keine Berichte gefunden.
+            </div>
+          ) : (
+            history.map((item) => (
+              <HistoryItem
+                key={item.id}
+                item={item}
+                onClick={setSelectedReport}
+              />
+            ))
+          )}
+        </div>
+      </div>
 
-        {/* Ausgabe Card */}
-        <Card className="w-full max-w-4xl bg-white shadow-md p-2">
-          <h2 className="text-2xl font-semibold mb-2 text-gray-800">
-            Berichtsausgabe
-          </h2>
+      {/* --- MAIN CONTENT --- */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-5xl 2xl:max-w-7xl mx-auto space-y-6 pb-20 transition-all duration-300">
+            <div className="text-center mb-6">
+              <h1 className="text-3xl 2xl:text-4xl font-bold text-gray-800">
+                AI Berichtsgenerator
+              </h1>
+            </div>
 
-          <div className="text-gray-700">
-            {!response ? (
-              <p>Noch keine Analyse durchgeführt.</p>
-            ) : (
-              <div className="space-y-6">
+            {/* --- EINGABE CARD --- */}
+            <div className="bg-white p-6 2xl:p-8 rounded-lg shadow-sm border border-gray-200">
+              <label className="block text-lg 2xl:text-xl font-semibold text-gray-700 mb-3">
+                Sachverhalt eingeben
+              </label>
 
-                {/* formal Report*/}
-                {response.final_report && (
-                  <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                    <h3 className="font-bold text-gray-800 mb-2">Formaler Polizeibericht</h3>
-                    <div className="whitespace-pre-wrap font-serif leading-relaxed">
-                      {response.final_report}
+              <textarea
+                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-base 2xl:text-lg resize-none leading-relaxed"
+                style={{ minHeight: "50vh" }}
+                placeholder="Hier den Berichtstext eingeben..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={handleAnalyze}
+                  disabled={loading || !text.trim()}
+                  className={`
+                    px-6 py-3 2xl:px-8 2xl:py-4 rounded-lg text-white font-semibold shadow-md transition-all 2xl:text-lg
+                    ${
+                      loading || !text.trim()
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg"
+                    }
+                  `}
+                >
+                  {loading ? "Analysiere..." : "Bericht analysieren"}
+                </button>
+              </div>
+            </div>
+
+            {/* --- DOWNLOAD BEREICH --- */}
+            {response && (
+              <div className="animate-fade-in space-y-6">
+                
+                {/* PDF DOWNLOAD CARD */}
+                <div className="bg-white p-8 2xl:p-10 rounded-lg shadow-xl border-l-4 border-green-500">
+                  <div className="flex flex-col items-center justify-center py-4 text-center space-y-4">
+                    
+                    {/* Icon */}
+                    <div className="bg-green-100 p-4 rounded-full">
+                      <span className="text-4xl">✅</span>
                     </div>
+
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      Analyse abgeschlossen
+                    </h2>
+
+                    <p className="text-gray-600 max-w-lg text-lg">
+                      Der Vorfall wurde erfolgreich analysiert und ein formaler Bericht erstellt.
+                      Sie können das Dokument nun herunterladen.
+                    </p>
+
+                    {/* Download Button */}
+                    {response.raw_report_id && (
+                      <a
+                        href={`http://localhost:8000/api/reports/${response.raw_report_id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <button className="mt-4 px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-transform hover:scale-105 text-lg">
+                          Polizeibericht als PDF herunterladen
+                        </button>
+                      </a>
+                    )}
                   </div>
-                )}
+                </div>
 
-                {/* B) facts & classification */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                  {/* classification */}
-                  {response.result && (
-                    <div className="bg-blue-50 p-3 rounded border border-blue-100">
-                      <strong className="block text-blue-800 mb-1">Klassifikation:</strong>
-                      <div className="flex flex-wrap gap-1">
-                        {Array.isArray(response.result) ? response.result.map((r, i) => (
-                          <span key={i} className="bg-white px-2 py-0.5 rounded text-sm border border-blue-200">{r}</span>
-                        )) : response.result}
+                {/* PROMPT DEBUG CARD */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                    Generierter Prompt (Debug)
+                  </h2>
+                  <div className="bg-gray-50 p-4 rounded text-xs text-gray-500 font-mono overflow-x-auto">
+                    <details>
+                      <summary className="cursor-pointer hover:text-gray-700">
+                        Technischen Prompt anzeigen
+                      </summary>
+                      <div className="mt-2 whitespace-pre-wrap">
+                        {response.prompt || "Kein Prompt verfügbar."}
                       </div>
-                    </div>
-                  )}
-
-                  {/* facts / replies */}
-                  {response.answers && (
-                    <div className="bg-yellow-50 p-3 rounded border border-yellow-100">
-                      <strong className="block text-yellow-800 mb-1">Details:</strong>
-                      <div className="text-sm space-y-2">
-                        {Object.entries(response.answers).map(([type, facts]) => (
-                          <div key={type}>
-                            <span className="uppercase text-xs font-bold text-gray-500">{type}</span>
-                            <ul className="pl-2">
-                              {Object.entries(facts).map(([k, v]) => (
-                                <li key={k}><span className="font-medium">{k}:</span> {v}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    </details>
+                  </div>
                 </div>
 
               </div>
             )}
           </div>
-        </Card>
-
-        {/* Prompt Debug Card */}
-        <Card className="w-full max-w-4xl bg-white shadow-md p-4">
-          <h2 className="text-2xl font-semibold mb-2 text-gray-800">
-            Generierter Prompt
-          </h2>
-          <div className="whitespace-pre-wrap text-gray-700 text-sm font-mono bg-gray-50 p-2 rounded">
-            {prompt || "Noch kein Prompt generiert."}
-          </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
