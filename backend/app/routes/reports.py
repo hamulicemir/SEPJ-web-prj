@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.session import get_db
-from app.models.db_models import RawReport, LLMRun, FinalReport
+from app.models.db_models import RawReport, LLMRun, FinalReport, Incident
 import json
 import re
+from app.services.pdf_service import generate_police_report_pdf
+
 
 router = APIRouter()
 
@@ -103,3 +105,40 @@ def get_reports_history(limit: int = 20, db: Session = Depends(get_db)):
         })
     
     return history_data
+
+@router.get("/api/reports/{report_id}/pdf")
+def download_report_pdf(report_id: str, db: Session = Depends(get_db)):
+    """Generates and downloads a PDF for a specific raw_report_id."""
+    
+    # Find the FinalReport linked to this raw_report_id (via incident)
+    final_report = (db.query(FinalReport)
+                    .join(Incident, FinalReport.incident_id == Incident.id)
+                    .filter(Incident.report_id == report_id)
+                    .order_by(FinalReport.id.desc())
+                    .first())
+
+    if not final_report or not final_report.body_md:
+        raise HTTPException(status_code=404, detail="No generated report found.")
+
+    try:
+        # Parse JSON body
+        try:
+            report_data = json.loads(final_report.body_md)
+        except json.JSONDecodeError:
+            report_data = {
+                "annotations": {
+                    "incidents": [{"structure": "Incident", "text": final_report.body_md}]
+                }
+            }
+        
+        pdf_bytes = generate_police_report_pdf(report_data)
+        
+        # Return as file download
+        headers = {
+            'Content-Disposition': f'attachment; filename="PolizeiBericht_{report_id}.pdf"'
+        }
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+        
+    except Exception as e:
+        print(f"PDF Error: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF Generation failed: {str(e)}")

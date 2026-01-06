@@ -7,6 +7,7 @@ import json
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.models.analyze_model import AnalyzeRequest
 from app.services.prompts_service import load_prompts, build_prompt
@@ -275,54 +276,157 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
         for key, value in facts.items():
             facts_summary += f"- {key}: {value}\n"
 
-    # Already used prompt for formal report generation
+    # -----------------------------------------------------------------------
+    # Prompt für den formalen Bericht definieren (One-shot Prompting)
+    # -----------------------------------------------------------------------
     writer_prompt = f"""
-Du bist ein Polizeibeamter. Schreibe einen formalen, sachlichen Bericht (Fließtext) basierend auf dem folgenden Sachverhalt und den extrahierten Fakten.
+Du bist ein erfahrener Polizeibeamter. Verfasse einen formalen, sachlichen Bericht (Fließtext) basierend auf den Daten.
 
 Original-Text:
 "{text}"
 
-Bestätigte Fakten:
+Fakten:
 {facts_summary}
 
-Anweisungen:
-- Schreibe im passiven Beamtendeutsch (z.B. "wurde festgestellt", "ereignete sich").
-- Fasse das Geschehen chronologisch zusammen.
-- Erwähne alle beteiligten Personen und Zeiten.
-- Keine Aufzählungszeichen, nur Fließtext.
-"""
+ANWEISUNGEN ZUR STRUKTUR:
+1. Schreibe **SOFORT** den ersten Satz des Berichts (z.B. "Am [Datum]..."). Schreibe KEINE Einleitungssätze wie "Hier ist der Bericht" oder "Der Bericht:".
+2. Bilde **drei klare Sinnabschnitte** (Einleitung, Tathergang, Maßnahmen), aber benutze **KEINE Überschriften** (wie "Absatz 1"). Nutze nur Leerzeilen zwischen den Abschnitten.
+3. Suche im Original-Text nach dem Namen des verfassenden Beamten (z.B. "Ich, POM Müller..."). Wenn du ihn findest, nutze ihn für die Unterschrift. Wenn nicht, nutze "Polizeibeamter".
 
-    final_report_text = ""
+ORIENTIERE DICH STRIKT AN DIESEM FORMAT-BEISPIEL:
+
+Am 12.05.2024 gegen 14:00 Uhr wurde die Streife zur Musterstraße gerufen. Vor Ort trafen die Beamten auf den Geschädigten.
+
+Der Täter hatte zuvor versucht, die Ware zu entwenden. Dabei wurde er vom Ladendetektiv beobachtet. Der Sachverhalt stellte sich wie folgt dar: ... (Ausführlicher Text) ...
+
+Nach Abschluss der Maßnahmen wurde dem Beschuldigten ein Platzverweis erteilt. Eine Strafanzeige wurde gefertigt.
+
+Mit freundlichen Grüßen
+
+POM Mustermann
+"""
+    
+    # our JSON object
+    final_report_structure = {} 
     
     try:
+        import re
         start_ts = time.time()
         
-        # Get text 
         final_report_text = await call_ollama(model_name, base_url, writer_prompt)
-        
         latency_ms = int((time.time() - start_ts) * 1000)
 
-        # Save final report in db
+        found_place = ""
+        found_time = ""
+        found_date = "" 
+        found_accused = []
+        
+        # keywords for intelligent search
+        keywords_place = ["ort", "place", "location", "wo", "address", "straße", "gegend", "lokalität"]
+        keywords_time = ["zeit", "time", "wann", "uhr", "hour", "dauer"]
+        keywords_date = ["datum", "date", "tag", "day", "am"]
+        keywords_person = ["täter", "accused", "beschuldigt", "verdächtig", "person", "wer", "involved", "beteiligt", "kollege", "beamte"]
+
+        def clean_person_string(raw_text):
+            """Zerlegt geschwätzige Listen der KI in saubere Namen."""
+            raw_text = re.sub(r'^.*?:', '', raw_text).strip()
+            parts = re.split(r'[,\n•\-\*]+', raw_text)
+            cleaned_names = []
+            for p in parts:
+                p = p.strip()
+                p = re.sub(r'\(.*?\)', '', p).strip() 
+                if len(p) > 2: 
+                    cleaned_names.append(p)
+            return cleaned_names
+
+        # search through all anwsers
+        for inc_type, facts in answers.items():
+            for key, val in facts.items():
+                k_low = key.lower() 
+                val_clean = val.strip()
+                if val_clean.lower() in ["keine information", "unbekannt", "n/a", "nicht genannt", "-", "", "keine"]:
+                    continue
+                if not found_place and any(kw in k_low for kw in keywords_place): found_place = val_clean
+                if any(kw in k_low for kw in keywords_time): found_time = val_clean
+                if not found_time and re.search(r'\d{1,2}:\d{2}', val_clean): found_time = val_clean
+                if any(kw in k_low for kw in keywords_date): found_date = val_clean
+                if any(kw in k_low for kw in keywords_person): 
+                    names = clean_person_string(val_clean)
+                    for name in names:
+                        if name not in found_accused: found_accused.append(name)
+
+        # -------------------------------------------------------
+        # Datum vom Anfang des Textes extrahieren
+        # -------------------------------------------------------
+        report_date_found = datetime.now().strftime('%d.%m.%Y') # Fallback: Today
+        
+        header_part = text[200:] 
+        date_match = re.search(r'(\d{1,2}\.\s*[a-zA-ZäöüÄÖÜ]+\s*\d{4}|\d{1,2}\.\d{1,2}\.\d{4})', header_part)
+        
+        if date_match:
+            report_date_found = date_match.group(1)
+            logger.info(f"Datum am Ende gefunden: {report_date_found}")
+
+        # -------------------------------------------------------
+        # JSON Template bauen
+        # -------------------------------------------------------
+        final_report_structure = {
+            "data": {
+                "filename": "upload.txt", 
+                "text": text,
+                "notes": []
+            },
+            "annotations": {
+                "report_date": report_date_found, 
+                
+                "reporter": "System (AI)",
+                "reported_to": "N/A",
+                "place": found_place or "-",
+                "date": found_date or "-",
+                "time": found_time or "-",
+                "accused": found_accused,
+                "colleagues": [],
+                "other_attendees": [],
+                "incidents": [
+                    {
+                        "structure": "Introduction",
+                        "type": "N/A",
+                        "text": "" 
+                    },
+                    {
+                        "structure": "Incident",
+                        "type": ", ".join(matched_incidents),
+                        "type_details": answers,
+                        "text": final_report_text
+                    },
+                    {
+                        "structure": "Resolution",
+                        "type": "N/A",
+                        "text": "" 
+                    }
+                ]
+            }
+        }
+
+        # Save final report
         if incident_rows:
             primary_incident = incident_rows[0]
             
             final_rep_entry = FinalReport(
                 incident_id=primary_incident.id,
-                body_md=final_report_text,
+                body_md=json.dumps(final_report_structure, ensure_ascii=False),
                 model_name=model_name,
                 created_by=None 
             )
             db.add(final_rep_entry)
             db.commit()
             
-            logger.info("Final Report gespeichert: %s", final_rep_entry.id)
-            
             create_llm_run(
                 db,
-                purpose="write_final_report",
+                purpose="write_final_report_json",
                 model_name=model_name,
                 request_payload={"prompt": writer_prompt},
-                response_payload={"response": final_report_text},
+                response_payload={"response": final_report_structure},
                 report_id=raw_report.id,
                 incident_id=primary_incident.id,
                 latency_ms=latency_ms,
@@ -330,7 +434,7 @@ Anweisungen:
 
     except Exception as e:
         logger.error("Fehler bei der Berichts-Generierung: %r", e)
-        final_report_text = "Fehler: Bericht konnte nicht generiert werden."
+        final_report_structure = {"error": str(e), "annotations": None}
 
     # -----------------------------------------------------------------------
     # 12) Antwort zurückgeben
@@ -338,7 +442,7 @@ Anweisungen:
     return {
         "status": "ok",
         "result": result,
-        "final_report": final_report_text,
+        "final_report": final_report_structure, 
         "prompt": final_prompt,
         "model": model_name,
         "chars_in": len(text),

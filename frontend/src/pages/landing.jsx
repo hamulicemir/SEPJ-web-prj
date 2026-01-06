@@ -70,6 +70,7 @@ export default function LandingPage() {
         onRestore={restoreReport}
       />
 
+      {/* --- SIDEBAR --- */}
       <div className="w-80 2xl:w-96 bg-white border-r border-gray-200 flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300">
         <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
           <h2 className="font-bold text-gray-700 2xl:text-lg">Verlauf</h2>
@@ -98,6 +99,7 @@ export default function LandingPage() {
         </div>
       </div>
 
+      {/* --- MAIN CONTENT --- */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl 2xl:max-w-7xl mx-auto space-y-6 pb-20 transition-all duration-300">
@@ -107,6 +109,7 @@ export default function LandingPage() {
               </h1>
             </div>
 
+            {/* --- EINGABE CARD --- */}
             <div className="bg-white p-6 2xl:p-8 rounded-lg shadow-sm border border-gray-200">
               <label className="block text-lg 2xl:text-xl font-semibold text-gray-700 mb-3">
                 Sachverhalt eingeben
@@ -138,85 +141,58 @@ export default function LandingPage() {
               </div>
             </div>
 
+            {/* --- DOWNLOAD BEREICH --- */}
             {response && (
               <div className="animate-fade-in space-y-6">
-                {response.final_report && (
-                  <div className="bg-white p-8 2xl:p-10 rounded-lg shadow-lg border-l-4 border-blue-600">
-                    <h2 className="text-2xl 2xl:text-3xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      📄 Formaler Polizeibericht
+                
+                {/* PDF DOWNLOAD CARD */}
+                <div className="bg-white p-8 2xl:p-10 rounded-lg shadow-xl border-l-4 border-green-500">
+                  <div className="flex flex-col items-center justify-center py-4 text-center space-y-4">
+                    
+                    {/* Icon */}
+                    <div className="bg-green-100 p-4 rounded-full">
+                      <span className="text-4xl">✅</span>
+                    </div>
+
+                    <h2 className="text-2xl font-bold text-gray-800">
+                      Analyse abgeschlossen
                     </h2>
-                    <div className="bg-gray-50 p-6 2xl:p-8 rounded border border-gray-200 text-gray-800 whitespace-pre-wrap font-serif leading-relaxed shadow-inner text-base 2xl:text-lg">
-                      {typeof response.final_report === "object" &&
-                      response.final_report.annotations
-                        ? response.final_report.annotations.incidents[1]?.text
-                        : response.final_report}
-                    </div>
+
+                    <p className="text-gray-600 max-w-lg text-lg">
+                      Der Vorfall wurde erfolgreich analysiert und ein formaler Bericht erstellt.
+                      Sie können das Dokument nun herunterladen.
+                    </p>
+
+                    {/* Download Button */}
+                    {response.raw_report_id && (
+                      <a
+                        href={`http://localhost:8000/api/reports/${response.raw_report_id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <button className="mt-4 px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-transform hover:scale-105 text-lg">
+                          Polizeibericht als PDF herunterladen
+                        </button>
+                      </a>
+                    )}
                   </div>
-                )}
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Klassifikation */}
-                  {response.result && (
-                    <div className="bg-white p-6 2xl:p-8 rounded-lg shadow-sm border border-gray-200">
-                      <h3 className="text-lg 2xl:text-xl font-bold text-gray-700 mb-3 border-b pb-2">
-                        🔍 Klassifikation
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {Array.isArray(response.result) ? (
-                          response.result.map((type, idx) => (
-                            <span
-                              key={idx}
-                              className="bg-blue-100 text-blue-800 px-3 py-1 2xl:px-4 2xl:py-2 rounded-full text-sm 2xl:text-base font-medium"
-                            >
-                              {type}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-gray-600">
-                            {JSON.stringify(response.result)}
-                          </span>
-                        )}
+                {/* PROMPT DEBUG CARD */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h2 className="text-lg font-semibold mb-2 text-gray-800">
+                    Generierter Prompt (Debug)
+                  </h2>
+                  <div className="bg-gray-50 p-4 rounded text-xs text-gray-500 font-mono overflow-x-auto">
+                    <details>
+                      <summary className="cursor-pointer hover:text-gray-700">
+                        Technischen Prompt anzeigen
+                      </summary>
+                      <div className="mt-2 whitespace-pre-wrap">
+                        {response.prompt || "Kein Prompt verfügbar."}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Fakten */}
-                  {response.answers && (
-                    <div className="bg-white p-6 2xl:p-8 rounded-lg shadow-sm border border-gray-200">
-                      <h3 className="text-lg 2xl:text-xl font-bold text-gray-700 mb-3 border-b pb-2">
-                        🧩 Extrahierte Fakten
-                      </h3>
-                      <div className="space-y-4">
-                        {Object.entries(response.answers).map(
-                          ([incType, answers]) => (
-                            <div
-                              key={incType}
-                              className="bg-yellow-50 p-3 2xl:p-5 rounded border border-yellow-100"
-                            >
-                              <strong className="text-xs 2xl:text-sm uppercase text-gray-500 block mb-1">
-                                {incType}
-                              </strong>
-                              <ul className="text-sm 2xl:text-base space-y-1">
-                                {Object.entries(answers).map(([key, val]) => (
-                                  <li
-                                    key={key}
-                                    className="flex justify-between border-b border-yellow-200 pb-1 mb-1 last:border-0 last:mb-0 last:pb-0"
-                                  >
-                                    <span className="font-medium text-gray-700 mr-2">
-                                      {key}:
-                                    </span>
-                                    <span className="text-gray-900 text-right">
-                                      {val}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    </details>
+                  </div>
                 </div>
 
                 {response.prompt && (
