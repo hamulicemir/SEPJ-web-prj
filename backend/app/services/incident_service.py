@@ -1,18 +1,11 @@
-# app/services/incident_service.py
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 import logging
 from app.db.session import engine
-
-# Imports für CRUD
 from app.models.db_models import IncidentType
 from app.models.analyze_model import IncidentTypeCreate, IncidentTypeUpdate
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# ALT: Bestehende Funktion für den Analyze-Endpoint (Raw SQL)
-# ---------------------------------------------------------------------------
 
 def load_incident_types():
     try:
@@ -34,15 +27,12 @@ def load_incident_types():
         ]
         return [{"code": c, "name": c.capitalize(), "desc": ""} for c in fallback]
 
-# ---------------------------------------------------------------------------
-# NEU: CRUD Funktionen für Admin-Dashboard (ORM)
-# ---------------------------------------------------------------------------
+# Admin-Dashboard (ORM)
 
 def get_all_types(db: Session):
     return db.query(IncidentType).order_by(IncidentType.code).all()
 
 def create_type(db: Session, data: IncidentTypeCreate):
-    # Prüfen ob Code schon existiert
     if db.query(IncidentType).filter(IncidentType.code == data.code).first():
         return None
     

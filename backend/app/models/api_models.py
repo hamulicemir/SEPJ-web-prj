@@ -3,7 +3,35 @@ from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
 
-# --- Prompts ---
+class IncidentTypeBase(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    prompt_ref: Optional[str] = None
+
+class IncidentTypeCreate(IncidentTypeBase):
+    pass
+
+class IncidentTypeOut(IncidentTypeBase):
+    class Config:
+        from_attributes = True
+
+class QuestionBase(BaseModel):
+    incident_type: str
+    question_key: str
+    label: str
+    answer_type: str = "text"
+    required: bool = False
+    order_index: int = 0
+
+class QuestionCreate(QuestionBase):
+    pass
+
+class QuestionOut(QuestionBase):
+    id: int
+    class Config:
+        from_attributes = True
+
 class PromptBase(BaseModel):
     name: str
     purpose: str
@@ -26,7 +54,6 @@ class PromptOut(PromptBase):
     class Config:
         from_attributes = True
 
-# --- Logs / LLM Runs ---
 class LLMRunOut(BaseModel):
     id: UUID
     purpose: str
@@ -41,7 +68,6 @@ class LLMRunOut(BaseModel):
     class Config:
         from_attributes = True
 
-# --- Metrics ---
 class MetricRequest(BaseModel):
     text1: str
     text2: str

@@ -6,14 +6,12 @@ import uuid
 
 from app.db.session import get_db
 from app.models.db_models import LLMRun
-# Wir nutzen die neuen Models, die wir gefixt haben
 from app.models.analyze_model import (
     PromptOut, PromptBase, PromptUpdate,
     IncidentTypeOut, IncidentTypeCreate, IncidentTypeUpdate,
     QuestionOut, QuestionBase, QuestionUpdate,
     LLMRunOut, MetricRequest
 )
-# Wir importieren die Services, die du gerade aktualisiert hast
 from app.services import prompts_service, incident_service, incident_questions
 
 router = APIRouter(tags=["Admin"])
