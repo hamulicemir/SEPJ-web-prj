@@ -1,4 +1,3 @@
-# app/routes/llm_ping.py
 import os, httpx, logging
 from fastapi import APIRouter, HTTPException
 

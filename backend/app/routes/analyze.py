@@ -1,5 +1,3 @@
-# app/routes/analyze.py
-
 import os
 import httpx
 import logging
@@ -27,9 +25,7 @@ from app.services.persistence_service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Hilfsfunktion: Anfrage an Ollama / Local LLM
-# ---------------------------------------------------------------------------
+# help function: request to Ollama
 async def call_ollama_with_meta(model: str, base_url: str, prompt: str) -> tuple[str, dict]:
     """
     Sendet einen Prompt an Ollama und gibt (Antworttext, komplette JSON-Response) zurück.
@@ -68,14 +64,10 @@ async def call_ollama(model: str, base_url: str, prompt: str) -> str:
         return data.get("response", "").strip()
     
 
-# ---------------------------------------------------------------------------
-# Haupt-Endpoint: Incident-Analyse
-# ---------------------------------------------------------------------------
+# Incident-analysis
 @router.post("/api/llm/analyze")
 async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db)):
-    # -----------------------------------------------------------------------
-    # 1) Eingabetext prüfen & speichern
-    # -----------------------------------------------------------------------
+
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
@@ -93,28 +85,19 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
     )
     logger.info("Raw report gespeichert: %s", raw_report.id)
 
-    # -----------------------------------------------------------------------
-    # 2) Typen & Promptfragmente laden
-    # -----------------------------------------------------------------------
+    # load types & prompts 
     incident_types = load_incident_types()
     prompts = load_prompts()
 
-    # -----------------------------------------------------------------------
-    # 3) Klassifikations-Prompt bauen
-    # -----------------------------------------------------------------------
+    # classification
     classify_prompt = build_prompt(text, incident_types, prompts)
     logger.info("Generated classify prompt:\n%s", classify_prompt)
     final_prompt = classify_prompt
 
-    # -----------------------------------------------------------------------
-    # 4) Konfiguration
-    # -----------------------------------------------------------------------
+    # config
     base_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
     model_name = os.getenv("OLLAMA_MODEL", "gemma:2b")
 
-    # -----------------------------------------------------------------------
-    # 5) Klassifikation an LLM senden
-    # -----------------------------------------------------------------------
     try:
         start_ts = time.time()
         result, result_raw = await call_ollama_with_meta(model_name, base_url, classify_prompt)
@@ -140,9 +123,6 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
         latency_ms=latency_ms,
     )
 
-    # -----------------------------------------------------------------------
-    # 6) Klassifikationsergebnis parsen
-    # -----------------------------------------------------------------------
     logger.info("Attempting JSON parse of LLM response: %s", result)
 
     try:
@@ -158,9 +138,7 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
     llm_normalized = [x.lower().strip() for x in llm_raw_list]
     logger.info("LLM normalized list: %s", llm_normalized)
 
-    # -----------------------------------------------------------------------
-    # 7) Mapping von Text zu Code
-    # -----------------------------------------------------------------------
+
     name_to_code = load_incident_type_mapping()
     logger.info("Loaded name_to_code mapping: %s", name_to_code)
 
@@ -184,9 +162,6 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
         logger.warning("Keine Vorfälle erkannt → fallback: unknown")
         matched_incidents = ["unknown"]
 
-    # -----------------------------------------------------------------------
-    # 8) Incidents erstellen
-    # -----------------------------------------------------------------------
     incident_rows = create_incidents_for_types(
         db,
         report_id=raw_report.id,
@@ -195,16 +170,11 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
 
     type_to_incident = {inc.incident_type: inc for inc in incident_rows}
 
-    # -----------------------------------------------------------------------
-    # 9) Fragen zu Vorfalltypen laden
-    # -----------------------------------------------------------------------
+
     incident_questions = load_incident_questions_for_types(matched_incidents)
     logger.info("Loaded %d incident questions", len(incident_questions))
     logger.info("Questions: %r", incident_questions)
 
-    # -----------------------------------------------------------------------
-    # 10) Fragen an LLM pro Incident
-    # -----------------------------------------------------------------------
     answers = {}
 
     for q in incident_questions:
@@ -217,7 +187,6 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
             logger.warning("Keine Incident-Instanz für %s gefunden", inc_type)
             continue
 
-        # Prompt erst jetzt definieren!
         prompt = f"""
 Text: {text}
 Frage: {question_text}
@@ -226,7 +195,6 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
 
         logger.info("Generated question prompt for type=%s:\n%s", inc_type, prompt)
 
-        # LLM Call
         try:
             start_ts = time.time()
             llm_answer, llm_raw = await call_ollama_with_meta(model_name, base_url, prompt)
@@ -242,7 +210,6 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
         answers.setdefault(inc_type, {})[question_key] = llm_answer
         final_prompt += f"\nFrage: {question_text}\nAntwort: {llm_answer}"
         
-        # Save LLM run
         create_llm_run(
             db,
             purpose="extract_answer",
@@ -264,9 +231,7 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
 
     db.commit()
 
-    # -----------------------------------------------------------------------
-    # 11) Formalen Bericht generieren
-    # -----------------------------------------------------------------------
+    # Generate report
     logger.info("Generiere formalen Abschlussbericht...")
 
     # Summarize facts
@@ -276,9 +241,7 @@ Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht
         for key, value in facts.items():
             facts_summary += f"- {key}: {value}\n"
 
-    # -----------------------------------------------------------------------
-    # Prompt für den formalen Bericht definieren (One-shot Prompting)
-    # -----------------------------------------------------------------------
+    #One-shot prompting
     writer_prompt = f"""
 Du bist ein erfahrener Polizeibeamter. Verfasse einen formalen, sachlichen Bericht (Fließtext) basierend auf den Daten.
 
@@ -355,9 +318,6 @@ POM Mustermann
                     for name in names:
                         if name not in found_accused: found_accused.append(name)
 
-        # -------------------------------------------------------
-        # Datum vom Anfang des Textes extrahieren
-        # -------------------------------------------------------
         report_date_found = datetime.now().strftime('%d.%m.%Y') # Fallback: Today
         
         header_part = text[200:] 
@@ -367,9 +327,8 @@ POM Mustermann
             report_date_found = date_match.group(1)
             logger.info(f"Datum am Ende gefunden: {report_date_found}")
 
-        # -------------------------------------------------------
-        # JSON Template bauen
-        # -------------------------------------------------------
+
+        #JSON Template
         final_report_structure = {
             "data": {
                 "filename": "upload.txt", 
@@ -436,9 +395,7 @@ POM Mustermann
         logger.error("Fehler bei der Berichts-Generierung: %r", e)
         final_report_structure = {"error": str(e), "annotations": None}
 
-    # -----------------------------------------------------------------------
-    # 12) Antwort zurückgeben
-    # -----------------------------------------------------------------------
+    # Extract answer
     return {
         "status": "ok",
         "result": result,

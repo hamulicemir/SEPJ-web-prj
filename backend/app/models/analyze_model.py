@@ -3,12 +3,9 @@ from typing import Optional, List, Any  # <--- Diese Zeile fehlte oder war unvol
 from uuid import UUID
 from datetime import datetime
 
-# --- Bestehendes Request Model ---
 class AnalyzeRequest(BaseModel):
     text: str
     title: Optional[str] = None
-
-# --- NEU: Admin Schemas (Prompts, Types, Questions, Logs) ---
 
 # Prompts
 class PromptBase(BaseModel):

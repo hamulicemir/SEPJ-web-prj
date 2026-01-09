@@ -1,19 +1,12 @@
-# app/services/incident_questions.py
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from app.db.session import engine
 import logging
 import uuid
-
-# Imports für CRUD
 from app.models.db_models import IncidentQuestion
 from app.models.analyze_model import QuestionBase, QuestionUpdate
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# ALT: Bestehende Funktionen für den Analyze-Endpoint (Raw SQL)
-# ---------------------------------------------------------------------------
 
 def load_incident_questions():
     try:
@@ -22,8 +15,6 @@ def load_incident_questions():
                 "SELECT incident_type, question_key, label, answer_type, order_index FROM incident_questions ORDER BY incident_type, order_index"
             )).fetchall()
 
-        # Achtung: im Original hattest du einmal "questions_key" und einmal "question_key". 
-        # Ich habe es auf "question_key" standardisiert, passend zum DB Model.
         return [
             {
                 "incident_type": r[0],
@@ -43,7 +34,6 @@ def load_incident_questions_for_types(types: list[str]):
     if not types:
         return []
 
-    # Mapping verwenden, damit Column-Namen stimmen
     query = sa.text("""
         SELECT incident_type, question_key, label, answer_type, order_index
         FROM incident_questions
@@ -52,7 +42,6 @@ def load_incident_questions_for_types(types: list[str]):
     """)
 
     with engine.connect() as conn:
-        # mappings() erlaubt Zugriff per Spaltenname
         rows = conn.execute(query, {"types": types}).mappings().fetchall()
 
     return [
@@ -66,9 +55,7 @@ def load_incident_questions_for_types(types: list[str]):
         for r in rows
     ]
 
-# ---------------------------------------------------------------------------
-# NEU: CRUD Funktionen für Admin-Dashboard (ORM)
-# ---------------------------------------------------------------------------
+# Admin-Dashboard (ORM)
 
 def get_all_questions(db: Session):
     return db.query(IncidentQuestion).order_by(IncidentQuestion.incident_type, IncidentQuestion.order_index).all()

@@ -11,7 +11,6 @@ def test_crud_incident_type(test_db):
     Testet den vollen Lebenszyklus eines Vorfallstyps:
     Erstellen -> Lesen -> Löschen.
     """
-    # Eindeutige ID für den Test (Vermeidung von Konflikten)
     unique_code = f"test_riot_{uuid.uuid4().hex[:6]}"
     
     # ERSTELLEN
@@ -31,12 +30,9 @@ def test_crud_incident_type(test_db):
     assert any(t.code == unique_code for t in all_types)
 
     # LÖSCHEN 
-    # Wir nehmen an, es gibt eine delete Funktion (Standard-CRUD)
     try:
         incident_service.delete_type(test_db, unique_code)
-        
-        # Prüfung: Nach dem Löschen darf er nicht mehr da sein
-        # Wir laden die Liste neu
+
         test_db.expire_all()
         remaining_types = incident_service.get_all_types(test_db)
         assert not any(t.code == unique_code for t in remaining_types)
@@ -70,7 +66,7 @@ def test_create_incident_question(test_db):
     
     assert created_q.label == "Welcher Gegenstand wurde gefunden?"
     assert created_q.incident_type == type_code
-    assert created_q.id is not None # ID muss von der DB generiert worden sein
+    assert created_q.id is not None
 
 
 # PROMPTS (KI-Anweisungen) TESTS
@@ -115,11 +111,9 @@ def test_json_cleanup_logic_justiz():
     
     clean_json = dirty_llm_response.replace("```json", "").replace("```", "").strip()
     
-    # Dein Substring-Finder Algorithmus
     if "{" in clean_json:
         start = clean_json.find("[")
         end = clean_json.rfind("]") + 1
-        # Fallback falls [ nicht gefunden wird, aber { existiert (für einzelne Objekte)
         if start == -1: 
              start = clean_json.find("{")
              end = clean_json.rfind("}") + 1

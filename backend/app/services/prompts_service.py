@@ -1,4 +1,3 @@
-# app/services/prompts_service.py
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.db.session import engine
@@ -42,8 +41,6 @@ def build_prompt(text: str, types: list[dict], prompts: dict[str, str]) -> str:
 
 {text.strip()}
 """
-
-# --- NEUE CRUD Funktionen (Verwendung von Session) ---
 
 def get_all_prompts(db: Session):
     return db.query(Prompt).order_by(Prompt.name).all()

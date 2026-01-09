@@ -7,8 +7,6 @@ def test_api_create_and_list_incident_types(client):
     1. Erstellt einen neuen Typ per POST.
     2. Prüft, ob er in der Liste per GET auftaucht.
     """
-    # Wir nutzen einen zufälligen Code, damit der Test immer funktioniert,
-    # egal was schon in der echten DB steht.
     rnd_code = f"api_test_type_{uuid.uuid4().hex[:6]}"
     
     payload = {
@@ -28,13 +26,12 @@ def test_api_create_and_list_incident_types(client):
     assert created_data["code"] == rnd_code
     assert created_data["name"] == "API Test Vorfall"
 
-    # 2. GET Request (Liste Laden)
+    # GET Request (Liste Laden)
     response_list = client.get("/api/config/types")
     assert response_list.status_code == 200
     
     all_types = response_list.json()
     
-    # Prüfen: Ist unser neuer Code in der Liste enthalten?
     found_codes = [t["code"] for t in all_types]
     assert rnd_code in found_codes
 
@@ -68,5 +65,4 @@ def test_api_create_question(client):
     
     assert q_data["incident_type"] == type_code
     assert q_data["label"] == "Welche Waffe?"
-    # Prüfen ob eine ID vergeben wurde (Datenbank hat funktioniert)
     assert "id" in q_data
