@@ -129,10 +129,9 @@ export default function LandingPage() {
                   disabled={loading || !text.trim()}
                   className={`
                     px-6 py-3 2xl:px-8 2xl:py-4 rounded-lg text-white font-semibold shadow-md transition-all 2xl:text-lg
-                    ${
-                      loading || !text.trim()
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg"
+                    ${loading || !text.trim()
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg"
                     }
                   `}
                 >
@@ -144,11 +143,11 @@ export default function LandingPage() {
             {/* --- DOWNLOAD BEREICH --- */}
             {response && (
               <div className="animate-fade-in space-y-6">
-                
+
                 {/* PDF DOWNLOAD CARD */}
                 <div className="bg-white p-8 2xl:p-10 rounded-lg shadow-xl border-l-4 border-green-500">
                   <div className="flex flex-col items-center justify-center py-4 text-center space-y-4">
-                    
+
                     {/* Icon */}
                     <div className="bg-green-100 p-4 rounded-full">
                       <span className="text-4xl">✅</span>
@@ -194,19 +193,6 @@ export default function LandingPage() {
                     </details>
                   </div>
                 </div>
-
-                {response.prompt && (
-                  <div className="bg-gray-100 p-4 rounded text-xs text-gray-500 font-mono overflow-x-auto">
-                    <details>
-                      <summary className="cursor-pointer hover:text-gray-700">
-                        Technischen Prompt anzeigen
-                      </summary>
-                      <div className="mt-2 whitespace-pre-wrap">
-                        {response.prompt}
-                      </div>
-                    </details>
-                  </div>
-                )}
               </div>
             )}
           </div>
