@@ -51,7 +51,6 @@ services:
     depends_on:
       - backend
 
-
   ollama:
     image: ollama/ollama:latest
     container_name: sepj-ollama
@@ -60,6 +59,22 @@ services:
       - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama:/root/.ollama
+
+  tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sepj-tests
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: pytest
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   pgdata:
