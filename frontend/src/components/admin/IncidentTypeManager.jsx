@@ -104,83 +104,93 @@ export default function IncidentTypeManager() {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* LISTE */}
-        <Card className="md:col-span-1">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-bold">Typen</h2>
-            <Button size="xs" color="success" onClick={handleCreateNew}>
-              + Neu
-            </Button>
-          </div>
-          <div className="space-y-2 overflow-y-auto h-96 pr-2">
-            {types.map((t) => (
-              <div
-                key={t.code}
-                onClick={() => handleSelect(t)}
-                className={`p-2 border rounded cursor-pointer hover:bg-gray-50 
-                  ${
-                    selected?.code === t.code
-                      ? "bg-blue-50 border-blue-500"
-                      : ""
-                  }
-                `}
-              >
-                <div className="font-bold">{t.name}</div>
-                <div className="text-xs text-gray-500 truncate">{t.code}</div>
-              </div>
-            ))}
+      {/* WICHTIG: Hier die feste Höhe für das Grid setzen */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+        
+        {/* LISTE (LINKE SPALTE) */}
+        {/* WICHTIG: h-full auf der Card, damit sie die Grid-Höhe annimmt */}
+        <Card className="md:col-span-1 h-full overflow-hidden">
+          <div className="flex flex-col h-full">
+            <div className="flex justify-between items-center mb-2 shrink-0">
+              <h2 className="text-xl font-bold">Typen</h2>
+              <Button color="blue" size="sm" onClick={handleCreateNew}>
+                + Neu
+              </Button>
+            </div>
+            
+            {/* WICHTIG: flex-grow und overflow-y-auto sorgen für Scrollen NUR in der Liste */}
+            <div className="flex-grow overflow-y-auto space-y-2 pr-1">
+              {types.map((t) => (
+                <div
+                  key={t.code}
+                  onClick={() => handleSelect(t)}
+                  className={`p-2 border rounded cursor-pointer hover:bg-gray-50 
+                    ${
+                      selected?.code === t.code
+                        ? "bg-blue-50 border-blue-500"
+                        : ""
+                    }
+                  `}
+                >
+                  <div className="font-bold">{t.name}</div>
+                  <div className="text-xs text-gray-500 truncate">{t.code}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
 
-        {/* EDITOR */}
-        <Card className="md:col-span-2">
+        {/* EDITOR (RECHTE SPALTE) */}
+        {/* WICHTIG: h-full auf der Card */}
+        <Card className="md:col-span-2 h-full">
           {selected || isCreating ? (
-            <div className="flex flex-col gap-4">
-              <h2 className="text-xl font-bold border-b pb-2">
+            <div className="flex flex-col h-full gap-4">
+              <h2 className="text-xl font-bold border-b pb-2 shrink-0">
                 {isCreating
                   ? "Neuen Typ anlegen"
                   : `Bearbeiten: ${selected.name}`}
               </h2>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Code (ID)
-                </label>
-                <TextInput
-                  value={formData.code}
-                  onChange={(e) =>
-                    setFormData({ ...formData, code: e.target.value })
-                  }
-                  disabled={!isCreating}
-                  placeholder="z.B. water_damage"
-                />
+              <div className="overflow-y-auto flex-grow pr-2 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Code (ID)
+                  </label>
+                  <TextInput
+                    value={formData.code}
+                    onChange={(e) =>
+                      setFormData({ ...formData, code: e.target.value })
+                    }
+                    disabled={!isCreating}
+                    placeholder="z.B. water_damage"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <TextInput
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Beschreibung
+                  </label>
+                  <Textarea
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    rows={6}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
-                <TextInput
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Beschreibung
-                </label>
-                <Textarea
-                  value={formData.description || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  rows={4}
-                />
-              </div>
-
-              <div className="flex justify-between mt-4 pt-4 border-t">
+              <div className="flex justify-between mt-auto pt-4 border-t shrink-0">
                 <Button color="gray" onClick={handleCancel}>
                   Abbrechen
                 </Button>
@@ -200,14 +210,14 @@ export default function IncidentTypeManager() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400 min-h-[200px]">
-              Wähle einen Typ oder erstelle einen neuen.
+            /* WICHTIG: h-full hier sorgt für vertikale Zentrierung im leeren Zustand */
+            <div className="flex items-center justify-center h-full text-gray-400">
+              Bearbeite einen Vorfallstypen oder erstelle einen neuen.
             </div>
           )}
         </Card>
       </div>
 
-      {/* FLOWBITE MODAL (ersetzt Custom-Modal) */}
       <Modal
         show={showDeleteModal}
         size="md"
