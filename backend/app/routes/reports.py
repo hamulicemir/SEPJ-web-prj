@@ -52,8 +52,8 @@ def parse_classification(response_data):
         return []
 
 @router.get("/api/reports/history")
-def get_reports_history(limit: int = 20, db: Session = Depends(get_db)):
-    reports = db.query(RawReport).order_by(desc(RawReport.created_at)).limit(limit).all()
+def get_reports_history(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+    reports = db.query(RawReport).order_by(desc(RawReport.created_at)).offset(skip).limit(limit).all()
     
     history_data = []
     
