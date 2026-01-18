@@ -8,3 +8,5 @@ reportlab
 pytest
 requests
 respx
+rouge-score
+Levenshtein

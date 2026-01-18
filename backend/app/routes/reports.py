@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.models.db_models import RawReport, LLMRun, FinalReport, Incident
 import json
 import re
-from app.services.pdf_service import generate_police_report_pdf
+from app.services.pdf_service import generate_incident_report_pdf
 
 
 router = APIRouter()
@@ -91,12 +91,17 @@ def get_reports_history(skip: int = 0, limit: int = 20, db: Session = Depends(ge
             except:
                 final_report_content = final_rep_entry.body_md
 
+        is_ref_flag = False
+        if final_rep_entry and getattr(final_rep_entry, 'is_reference', False):
+            is_ref_flag = True        
+
         history_data.append({
             "id": str(r.id),
             "title": r.title or "Unbenannter Bericht",
             "date": r.created_at,
             "preview": r.body[:60] + "..." if r.body else "",
             "full_text": r.body,
+            "is_reference": is_ref_flag,
             "result_data": {
                 "classification": classification,
                 "facts": facts,
@@ -131,11 +136,11 @@ def download_report_pdf(report_id: str, db: Session = Depends(get_db)):
                 }
             }
         
-        pdf_bytes = generate_police_report_pdf(report_data)
+        pdf_bytes = generate_incident_report_pdf(report_data)
         
         # Return as file download
         headers = {
-            'Content-Disposition': f'attachment; filename="PolizeiBericht_{report_id}.pdf"'
+            'Content-Disposition': f'attachment; filename="Vorfallsbericht_{report_id}.pdf"'
         }
         return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
         

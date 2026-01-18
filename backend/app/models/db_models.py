@@ -13,6 +13,19 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+class FinalReport(Base):
+    __tablename__ = "final_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False)
+    body_md = Column(Text, nullable=False)
+    model_name = Column(Text, nullable=True)
+    
+    # mark report as golden truth (reference report for metrics)
+    is_reference = Column(Boolean, default=False) 
+    
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class RawReport(Base):
     __tablename__ = "raw_reports"
@@ -77,17 +90,6 @@ class StructuredAnswer(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     incident = relationship("Incident", back_populates="answers")
-
-
-class FinalReport(Base):
-    __tablename__ = "final_reports"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False)
-    body_md = Column(Text, nullable=False)
-    model_name = Column(Text, nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class LLMRun(Base):

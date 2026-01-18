@@ -16,7 +16,7 @@ import io
 from html import escape
 
 
-def generate_police_report_pdf(report_data: dict) -> bytes:
+def generate_incident_report_pdf(report_data: dict) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -25,7 +25,7 @@ def generate_police_report_pdf(report_data: dict) -> bytes:
         leftMargin=20 * mm,
         topMargin=20 * mm,
         bottomMargin=20 * mm,
-        title="PolizeiBericht",
+        title="Vorfallsbericht",
     )
     story = []
     styles = getSampleStyleSheet()
@@ -62,7 +62,7 @@ def generate_police_report_pdf(report_data: dict) -> bytes:
     # --- Header ---
     header_table_data = [
         [
-            Paragraph("<b>POLIZEIBERICHT / PROTOKOLL</b>", styles["Heading1"]),
+            Paragraph("<b>VORFALLSBERICHT</b>", styles["Heading1"]),
             Paragraph(f"{case_id}<br/>Datum: {report_date}", style_meta_right),
         ]
     ]
