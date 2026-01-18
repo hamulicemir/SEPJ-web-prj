@@ -3,6 +3,8 @@ import httpx
 import logging
 import json
 import time
+import re
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -25,56 +27,79 @@ from app.services.persistence_service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# help function: request to Ollama
-async def call_ollama_with_meta(model: str, base_url: str, prompt: str) -> tuple[str, dict]:
-    """
-    Sendet einen Prompt an Ollama und gibt (Antworttext, komplette JSON-Response) zurück.
-    """
-    url = f"{base_url}/api/generate"
+# helper function: robust JSON extraction (handles markdown blocks)
+def extract_json_object(text: str) -> dict:
+    try:
+        # 1. try direct parse
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
 
+    # 2. try removing markdown code blocks (e.g. ```json ... ```)
+    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 3. try finding the first '{' and last '}'
+    try:
+        start_index = text.find('{')
+        end_index = text.rfind('}')
+        if start_index != -1 and end_index != -1:
+            json_str = text[start_index : end_index + 1]
+            return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+        
+    return {}
+
+# helper function: request to ollama (async with metadata)
+async def call_ollama_with_meta(model: str, base_url: str, prompt: str) -> tuple[str, dict]:
+    url = f"{base_url}/api/generate"
     payload = {
         "model": model,
         "prompt": prompt,
         "stream": False,
         "options": {"num_predict": -1},
+        "temperature": 0.2 # Low temp for precision
     }
-
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
         text = data.get("response", "").strip()
         return text, data
-    
-async def call_ollama(model: str, base_url: str, prompt: str) -> str:
-    """Sendet einen Prompt an Ollama und gibt den Text der Antwort zurück."""
-    url = f"{base_url}/api/generate"
 
+# helper function: simple request
+async def call_ollama(model: str, base_url: str, prompt: str) -> str:
+    url = f"{base_url}/api/generate"
     payload = {
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"num_predict": -1}
+        "options": {"num_predict": -1},
+        "temperature": 0.2
     }
-
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
         return data.get("response", "").strip()
-    
 
-# Incident-analysis
+# main endpoint
 @router.post("/api/llm/analyze")
 async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db)):
 
     text = payload.text.strip()
     if not text:
-        raise HTTPException(status_code=400, detail="Leerer Text übergeben.")
+        raise HTTPException(status_code=400, detail="Empty text provided.")
 
     logger.info("ANALYZE START")
     logger.info("Input text: %s", text)
-
+    
+    # 1. create raw report entry
     raw_report = create_raw_report(
         db,
         text=text,
@@ -83,35 +108,29 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
         language="de",
         created_by=None,
     )
-    logger.info("Raw report gespeichert: %s", raw_report.id)
 
-    # load types & prompts 
+    # 2. load config & prompts
     incident_types = load_incident_types()
     prompts = load_prompts()
-
-    # classification
-    classify_prompt = build_prompt(text, incident_types, prompts)
-    logger.info("Generated classify prompt:\n%s", classify_prompt)
-    final_prompt = classify_prompt
-
-    # config
+    
     base_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-    model_name = os.getenv("OLLAMA_MODEL", "gemma:2b")
+    model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:7b") 
+
+    # 3. classification step
+    classify_prompt = build_prompt(text, incident_types, prompts)
+    final_prompt = classify_prompt
 
     try:
         start_ts = time.time()
         result, result_raw = await call_ollama_with_meta(model_name, base_url, classify_prompt)
         latency_ms = int((time.time() - start_ts) * 1000)
     except Exception as e:
-        logger.error("LLM Fehler (classify): %r", e)
-        raise HTTPException(status_code=502, detail="Fehler bei LLM-Anfrage (classify)")
+        logger.error("LLM Error (classify): %r", e)
+        raise HTTPException(status_code=502, detail="Error during LLM classification")
     
-    final_prompt += f"\nAntwort: {result}"
-
-    logger.info("LLM raw classification response: %s", result_raw)
-    logger.info("LLM classification text response: %s", result)
-
-    # Save classify run
+    final_prompt += f"\nAnswer: {result}"
+    
+    # save classification run
     create_llm_run(
         db,
         purpose="classify",
@@ -123,212 +142,172 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
         latency_ms=latency_ms,
     )
 
-    logger.info("Attempting JSON parse of LLM response: %s", result)
-
+    # parsing the classifications from LLM response
     try:
         llm_raw_list = json.loads(result)
-        if not isinstance(llm_raw_list, list):
-            raise ValueError("LLM Antwort ist keine Liste")
-    except Exception:
+        if not isinstance(llm_raw_list, list): raise ValueError
+    except:
+        # fallback if json parse fails
         llm_raw_list = [x.strip() for x in result.split(",") if x.strip()]
-        logger.warning("JSON parse failed. Fallback aktiviert: %s", llm_raw_list)
-
-    logger.info("LLM-Antwort (raw list): %r", llm_raw_list)
 
     llm_normalized = [x.lower().strip() for x in llm_raw_list]
-    logger.info("LLM normalized list: %s", llm_normalized)
-
-
     name_to_code = load_incident_type_mapping()
-    logger.info("Loaded name_to_code mapping: %s", name_to_code)
-
+    
     matched_incidents = []
     for name in llm_normalized:
-        logger.info("Checking LLM result: '%s'", name)
-
-        if name == "keiner":
-            continue
-
-        if name not in name_to_code:
-            logger.warning("Unbekannter Vorfalltyp: %s", name)
-            continue
-
-        matched_incidents.append(name_to_code[name])
-        logger.info("Mapped '%s' → '%s'", name, name_to_code[name])
-
-    logger.info("Matched incidents: %s", matched_incidents)
+        if name == "keiner": continue
+        if name in name_to_code:
+            matched_incidents.append(name_to_code[name])
 
     if not matched_incidents:
-        logger.warning("Keine Vorfälle erkannt → fallback: unknown")
         matched_incidents = ["unknown"]
 
-    incident_rows = create_incidents_for_types(
-        db,
-        report_id=raw_report.id,
-        incident_types=matched_incidents,
-    )
-
+    # create incidents in db 
+    incident_rows = create_incidents_for_types(db, report_id=raw_report.id, incident_types=matched_incidents)
     type_to_incident = {inc.incident_type: inc for inc in incident_rows}
 
-
+    # 4. generate detailed questions (parallel execution)
     incident_questions = load_incident_questions_for_types(matched_incidents)
-    logger.info("Loaded %d incident questions", len(incident_questions))
-    logger.info("Questions: %r", incident_questions)
-
     answers = {}
+    tasks = []
+    metadata_list = []
 
     for q in incident_questions:
         inc_type = q["incident_type"]
         question_text = q["label"]
         question_key = q["question_key"]
-
-        incident_obj = type_to_incident.get(inc_type)
-        if incident_obj is None:
-            logger.warning("Keine Incident-Instanz für %s gefunden", inc_type)
-            continue
-
-        prompt = f"""
-Text: {text}
-Frage: {question_text}
-Regel: Beantworte die Frage klar und knapp. Wenn keine Information im Text steht, antworte 'Keine Information'.
-"""
-
-        logger.info("Generated question prompt for type=%s:\n%s", inc_type, prompt)
-
-        try:
-            start_ts = time.time()
-            llm_answer, llm_raw = await call_ollama_with_meta(model_name, base_url, prompt)
-            latency_ms = int((time.time() - start_ts) * 1000)
-        except Exception as e:
-            logger.error("LLM Fehler bei Frage '%s': %r", question_text, e)
-            llm_answer = "Fehler bei der LLM-Anfrage"
-            llm_raw = {"error": str(e)}
-            latency_ms = None
-
-        logger.info("Antwort erhalten: %s → %s", question_key, llm_answer)
-
-        answers.setdefault(inc_type, {})[question_key] = llm_answer
-        final_prompt += f"\nFrage: {question_text}\nAntwort: {llm_answer}"
         
-        create_llm_run(
-            db,
-            purpose="extract_answer",
-            model_name=model_name,
-            request_payload={"prompt": prompt},
-            response_payload=llm_raw,
-            report_id=raw_report.id,
-            incident_id=incident_obj.id,
-            latency_ms=latency_ms,
-        )
+        incident_obj = type_to_incident.get(inc_type)
+        if not incident_obj: continue
 
-        # Save structured answer
-        create_structured_answer(
-            db,
-            incident_id=incident_obj.id,
-            question_key=question_key,
-            answer_text=llm_answer,
-        )
+        prompt = f"Text: {text}\nFrage: {question_text}\nRegel: Beantworte kurz und präzise. Wenn keine Info da ist: 'Keine Information'."
+        
+        metadata_list.append({
+            "inc_type": inc_type, "key": question_key, "text": question_text,
+            "inc_id": incident_obj.id, "prompt": prompt, "start_ts": time.time()
+        })
+        tasks.append(call_ollama_with_meta(model_name, base_url, prompt))
+
+    # execute all questions in parallel
+    if tasks:
+        logger.info(f"Starting {len(tasks)} questions in parallel...")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    else:
+        results = []
+
+    # process results
+    for i, res in enumerate(results):
+        meta = metadata_list[i]
+        latency = int((time.time() - meta["start_ts"]) * 1000)
+        
+        if isinstance(res, Exception):
+            val = "Error"
+            raw = {"error": str(res)}
+        else:
+            val, raw = res
+
+        answers.setdefault(meta["inc_type"], {})[meta["key"]] = val
+        final_prompt += f"\nQuestion: {meta['text']}\nAnswer: {val}"
+        
+        create_llm_run(db, purpose="extract_answer", model_name=model_name, request_payload={"prompt": meta["prompt"]}, response_payload=raw, report_id=raw_report.id, incident_id=meta["inc_id"], latency_ms=latency)
+        create_structured_answer(db, incident_id=meta["inc_id"], question_key=meta["key"], answer_text=val)
 
     db.commit()
 
-    # Generate report
-    logger.info("Generiere formalen Abschlussbericht...")
-
-    # Summarize facts
+    # summarize extracted facts for the final writer
     facts_summary = ""
     for inc_type, facts in answers.items():
-        facts_summary += f"\n[Vorfall: {inc_type.upper()}]\n"
-        for key, value in facts.items():
-            facts_summary += f"- {key}: {value}\n"
+        facts_summary += f"\n[{inc_type.upper()}]\n" + "\n".join([f"- {k}: {v}" for k,v in facts.items()])
 
-    #One-shot prompting
+    # final report generation - V6 PROMPT (Fluent Style & Robust Metadata)
     writer_prompt = f"""
-Du bist ein erfahrener Polizeibeamter. Verfasse einen formalen, sachlichen Bericht (Fließtext) basierend auf den Daten.
+Du bist ein professioneller Schriftführer im österreichischen Justizvollzug.
+Deine Aufgabe: Verfasse einen **fließenden, narrativen** Amtsbericht und extrahiere Metadaten.
 
-Original-Text:
-"{text}"
+INPUT: "{text}"
+DETAILS: {facts_summary}
 
-Fakten:
-{facts_summary}
+ANWEISUNGEN FÜR DEN TEXT (Body):
+1. **Stil:** Schreibe NICHT stichwortartig ("Wurde verlegt."), sondern in ganzen, fließenden Sätzen ("Aufgrund des Vorfalls wurde eine sofortige Verlegung veranlasst.").
+2. **Konnektoren:** Verbinde Sätze sinnvoll (z.B. "daraufhin", "anschließend", "im Zuge dessen").
+3. **Namen:** Schreibe immer den Titel dazu (z.B. "Insasse Schärdinger").
+4. **Vollständigkeit:** Übernimm alle Details, aber vermeide reine Wiederholungen der Einleitung.
 
-ANWEISUNGEN ZUR STRUKTUR:
-1. Schreibe **SOFORT** den ersten Satz des Berichts (z.B. "Am [Datum]..."). Schreibe KEINE Einleitungssätze wie "Hier ist der Bericht" oder "Der Bericht:".
-2. Bilde **drei klare Sinnabschnitte** (Einleitung, Tathergang, Maßnahmen), aber benutze **KEINE Überschriften** (wie "Absatz 1"). Nutze nur Leerzeilen zwischen den Abschnitten.
-3. Suche im Original-Text nach dem Namen des verfassenden Beamten (z.B. "Ich, POM Müller..."). Wenn du ihn findest, nutze ihn für die Unterschrift. Wenn nicht, nutze "Polizeibeamter".
+BEISPIEL FÜR DEN STIL (One-Shot):
+Input: "Ich ging zur Zelle. Da war Rauch."
+Output: "Im Zuge des Nachtdienstes begab ich mich zum Haftraum, da aus diesem eine Rauchentwicklung wahrnehmbar war."
 
-ORIENTIERE DICH STRIKT AN DIESEM FORMAT-BEISPIEL:
+ANWEISUNGEN FÜR DIE METADATEN (JSON):
+- "meta_place": Nenne den **genauen Ort** aus dem Text (z.B. "Haftraum 1.205").
+- "meta_persons": Liste NUR die Insassen.
 
-Am 12.05.2024 gegen 14:00 Uhr wurde die Streife zur Musterstraße gerufen. Vor Ort trafen die Beamten auf den Geschädigten.
+FORMAT (JSON):
+{{
+  "meta_date": "Datum des Vorfalls (DD.MM.YYYY)",
+  "meta_time": "Uhrzeit (HH:MM)",
+  "meta_place": "Genauer Ort",
+  "meta_persons": ["Insasse A", "Insasse B"],
+  "intro": "Einleitung: Wer meldet den Vorfall?",
+  "main": "Sachverhalt: Fließender Text.",
+  "measures": "Maßnahmen: Fließender Text."
+}}
 
-Der Täter hatte zuvor versucht, die Ware zu entwenden. Dabei wurde er vom Ladendetektiv beobachtet. Der Sachverhalt stellte sich wie folgt dar: ... (Ausführlicher Text) ...
-
-Nach Abschluss der Maßnahmen wurde dem Beschuldigten ein Platzverweis erteilt. Eine Strafanzeige wurde gefertigt.
-
-Mit freundlichen Grüßen
-
-POM Mustermann
+Gib NUR das JSON zurück.
 """
     
-    # our JSON object
-    final_report_structure = {} 
-    
+    final_report_structure = {}
     try:
-        import re
         start_ts = time.time()
         
-        final_report_text = await call_ollama(model_name, base_url, writer_prompt)
+        # llm request
+        final_report_text_raw = await call_ollama(model_name, base_url, writer_prompt)
         latency_ms = int((time.time() - start_ts) * 1000)
 
-        found_place = ""
-        found_time = ""
-        found_date = "" 
-        found_accused = []
+        # parse json 
+        report_parts = extract_json_object(final_report_text_raw)
         
-        # keywords for intelligent search
-        keywords_place = ["ort", "place", "location", "wo", "address", "straße", "gegend", "lokalität"]
-        keywords_time = ["zeit", "time", "wann", "uhr", "hour", "dauer"]
-        keywords_date = ["datum", "date", "tag", "day", "am"]
-        keywords_person = ["täter", "accused", "beschuldigt", "verdächtig", "person", "wer", "involved", "beteiligt", "kollege", "beamte"]
+        if not report_parts: 
+            logger.error("JSON Parsing failed. Raw text: %s", final_report_text_raw)
+            report_parts = {"intro": "Fehler.", "main": final_report_text_raw, "measures": ""}
 
-        def clean_person_string(raw_text):
-            """Zerlegt geschwätzige Listen der KI in saubere Namen."""
-            raw_text = re.sub(r'^.*?:', '', raw_text).strip()
-            parts = re.split(r'[,\n•\-\*]+', raw_text)
-            cleaned_names = []
-            for p in parts:
-                p = p.strip()
-                p = re.sub(r'\(.*?\)', '', p).strip() 
-                if len(p) > 2: 
-                    cleaned_names.append(p)
-            return cleaned_names
+        # extract reporter name via regex
+        reporter = "System (AI)"
+        match_rep = re.search(r'(?:Hier spricht|Ich bin|Meldung von)\s+([A-Za-zäöüÄÖÜß]+)', text)
+        if match_rep: reporter = match_rep.group(1)
 
-        # search through all anwsers
-        for inc_type, facts in answers.items():
-            for key, val in facts.items():
-                k_low = key.lower() 
-                val_clean = val.strip()
-                if val_clean.lower() in ["keine information", "unbekannt", "n/a", "nicht genannt", "-", "", "keine"]:
-                    continue
-                if not found_place and any(kw in k_low for kw in keywords_place): found_place = val_clean
-                if any(kw in k_low for kw in keywords_time): found_time = val_clean
-                if not found_time and re.search(r'\d{1,2}:\d{2}', val_clean): found_time = val_clean
-                if any(kw in k_low for kw in keywords_date): found_date = val_clean
-                if any(kw in k_low for kw in keywords_person): 
-                    names = clean_person_string(val_clean)
-                    for name in names:
-                        if name not in found_accused: found_accused.append(name)
+        # 1. Report Date
+        report_creation_date = datetime.now().strftime('%d.%m.%Y')
 
-        report_date_found = datetime.now().strftime('%d.%m.%Y') # Fallback: Today
+        # 2. Incident Metadata extraction with FALLBACK logic
+        # Date
+        incident_date = report_parts.get("meta_date")
+        if not incident_date or incident_date == "-": incident_date = report_creation_date
         
-        header_part = text[200:] 
-        date_match = re.search(r'(\d{1,2}\.\s*[a-zA-ZäöüÄÖÜ]+\s*\d{4}|\d{1,2}\.\d{1,2}\.\d{4})', header_part)
+        # Place - FALLBACK: If Writer missed it, look in Q&A answers
+        incident_place = report_parts.get("meta_place")
+        if not incident_place or incident_place in ["-", ""]:
+            # Fallback: Search in answers for keys like "location", "place", "wo"
+            for inc_type, facts in answers.items():
+                for k, v in facts.items():
+                    if "wo" in k.lower() or "place" in k.lower() or "ort" in k.lower():
+                        incident_place = v
+                        break
+                if incident_place and incident_place not in ["-", ""]: break
+        if not incident_place: incident_place = "-"
+
+        # Time
+        incident_time = report_parts.get("meta_time", "-")
         
-        if date_match:
-            report_date_found = date_match.group(1)
-            logger.info(f"Datum am Ende gefunden: {report_date_found}")
+        # 3. Persons list
+        raw_persons = report_parts.get("meta_persons", [])
+        if isinstance(raw_persons, list):
+            final_accused = raw_persons
+        elif isinstance(raw_persons, str):
+            final_accused = [p.strip() for p in raw_persons.split(",")]
+        else:
+            final_accused = []
 
-
-        #JSON Template
+        # construct final structure
         final_report_structure = {
             "data": {
                 "filename": "upload.txt", 
@@ -336,75 +315,52 @@ POM Mustermann
                 "notes": []
             },
             "annotations": {
-                "report_date": report_date_found, 
+                "report_date": report_creation_date, 
+                "reporter": reporter,
+                "reported_to": "Inspektionsdienst",
                 
-                "reporter": "System (AI)",
-                "reported_to": "N/A",
-                "place": found_place or "-",
-                "date": found_date or "-",
-                "time": found_time or "-",
-                "accused": found_accused,
+                # Metadata Table
+                "place": incident_place,
+                "date": incident_date,
+                "time": incident_time,
+                "accused": final_accused,
+                
                 "colleagues": [],
                 "other_attendees": [],
                 "incidents": [
                     {
-                        "structure": "Introduction",
+                        "structure": "Einleitung",
                         "type": "N/A",
-                        "text": "" 
+                        "text": report_parts.get("intro", "") 
                     },
                     {
-                        "structure": "Incident",
+                        "structure": "Sachverhalt",
                         "type": ", ".join(matched_incidents),
                         "type_details": answers,
-                        "text": final_report_text
+                        "text": report_parts.get("main", "")
                     },
                     {
-                        "structure": "Resolution",
+                        "structure": "Maßnahmen",
                         "type": "N/A",
-                        "text": "" 
+                        "text": report_parts.get("measures", "") 
                     }
                 ]
             }
         }
-
-        # Save final report
+        
+        # save final report
         if incident_rows:
-            primary_incident = incident_rows[0]
-            
-            final_rep_entry = FinalReport(
-                incident_id=primary_incident.id,
-                body_md=json.dumps(final_report_structure, ensure_ascii=False),
-                model_name=model_name,
-                created_by=None 
-            )
-            db.add(final_rep_entry)
+            primary = incident_rows[0]
+            final_rep = FinalReport(incident_id=primary.id, body_md=json.dumps(final_report_structure, ensure_ascii=False), model_name=model_name)
+            db.add(final_rep)
             db.commit()
-            
-            create_llm_run(
-                db,
-                purpose="write_final_report_json",
-                model_name=model_name,
-                request_payload={"prompt": writer_prompt},
-                response_payload={"response": final_report_structure},
-                report_id=raw_report.id,
-                incident_id=primary_incident.id,
-                latency_ms=latency_ms,
-            )
+            create_llm_run(db, purpose="write_final_report_json", model_name=model_name, request_payload={"prompt": writer_prompt}, response_payload={"response": final_report_structure}, report_id=raw_report.id, incident_id=primary.id, latency_ms=latency_ms)
 
     except Exception as e:
-        logger.error("Fehler bei der Berichts-Generierung: %r", e)
-        final_report_structure = {"error": str(e), "annotations": None}
+        logger.error(f"Error write report: {e}")
+        final_report_structure = {"error": str(e)}
 
-    # Extract answer
     return {
-        "status": "ok",
-        "result": result,
-        "final_report": final_report_structure, 
-        "prompt": final_prompt,
-        "model": model_name,
-        "chars_in": len(text),
-        "raw_report_id": str(raw_report.id),
-        "incident_ids": [str(i.id) for i in incident_rows],
-        "matched_incident_types": matched_incidents,
-        "answers": answers,
+        "status": "ok", "final_report": final_report_structure, "model": model_name,
+        "raw_report_id": str(raw_report.id), "matched_incident_types": matched_incidents
     }
