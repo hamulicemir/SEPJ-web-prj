@@ -170,7 +170,7 @@ export default function LandingPage() {
                         rel="noopener noreferrer"
                       >
                         <button className="mt-4 px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition-transform hover:scale-105 text-lg">
-                          Polizeibericht als PDF herunterladen
+                          Vorfallsbericht als PDF herunterladen
                         </button>
                       </a>
                     )}
