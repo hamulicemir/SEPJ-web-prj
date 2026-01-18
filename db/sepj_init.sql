@@ -85,9 +85,13 @@ CREATE TABLE IF NOT EXISTS final_reports (
   incident_id    UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
   body_md        TEXT NOT NULL,
   model_name     TEXT,
+  is_reference   BOOLEAN DEFAULT FALSE,
   created_by     UUID,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE final_reports
+ADD COLUMN IF NOT EXISTS is_reference BOOLEAN DEFAULT FALSE;
 
 -- ============================================================================
 -- 7) LLM RUNS – Model observability / audit logs
@@ -119,6 +123,17 @@ CREATE TABLE IF NOT EXISTS prompts (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 -- ============================================================================
+
+ALTER TABLE incident_questions
+  ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- prompts.id must have UUID default
+ALTER TABLE prompts
+  ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- final_reports.is_reference must exist
+ALTER TABLE final_reports
+  ADD COLUMN IF NOT EXISTS is_reference BOOLEAN DEFAULT FALSE;
 
 -- ============================================================================
 -- SEED: INCIDENT TYPES (Vorfallstypen)
@@ -261,30 +276,3 @@ Lies ihn sorgfältig und wende die oben genannten Regeln an.
 $PROMPT$
   )
 ON CONFLICT DO NOTHING;
-
-
-
--- ============================================================================
--- SEED: Beispielhafte Rohberichte (mit mehreren Vorfällen)
--- ============================================================================
-INSERT INTO raw_reports (title, body, source, language) VALUES
-  ('Schulhof Auseinandersetzung',
-   'Gestern gegen 18:30 gerieten A und B auf dem Schulhof in Streit. B erlitt eine Prellung am Arm.',
-   'speech-to-text', 'de'),
-
-  ('Kellerbrand in Wohnhaus',
-   'Am 20.09.2025 wurde Rauch im Keller festgestellt. Ein Karton brannte, die Feuerwehr löschte schnell. Niemand verletzt.',
-   'email', 'de'),
-
-  ('Fahrraddiebstahl am Bahnhof',
-   'Heute Vormittag wurde das angeschlossene Fahrrad von C am Bahnhof entwendet. Schloss lag aufgebrochen daneben.',
-   'sms', 'de'),
-
-  ('Mehrere Vorfälle in einer Nacht',
-   'Gegen 23 Uhr wurde eine Kellertür aufgebrochen. Kurz darauf brannte ein Mülleimer vor dem Eingang. Beim Versuch, den Täter zu stellen, kam es zu einer Rangelei.',
-   'speech-to-text', 'de'),
-
-  ('Schnittverletzung beim Kochen',
-   'Heute früh um 07:10 schnitt sich D versehentlich beim Schneiden am Finger. Der Schnitt wurde vor Ort versorgt.',
-   'note', 'de')
-   ON CONFLICT DO NOTHING;
