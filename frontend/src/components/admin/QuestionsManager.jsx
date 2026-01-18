@@ -144,7 +144,6 @@ export default function QuestionsManager() {
       {selectedTypeCode && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow overflow-hidden">
             
-            {/* LINKE SPALTE: LISTE DER FRAGEN */}
             <Card className="md:col-span-1 flex flex-col overflow-hidden h-full">
                 <div className="flex justify-between items-center mb-2 flex-shrink-0">
                     <h3 className="text-lg font-bold">Fragen ({filteredQuestions.length})</h3>

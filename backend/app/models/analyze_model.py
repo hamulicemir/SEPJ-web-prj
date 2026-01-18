@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Any  # <--- Diese Zeile fehlte oder war unvollständig
+from typing import Optional, List, Any 
 from uuid import UUID
 from datetime import datetime
 

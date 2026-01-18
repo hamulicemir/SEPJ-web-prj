@@ -62,7 +62,6 @@ export default function LandingPage() {
   };
 
   return (
-    // FIX: calc(100vh - NavbarHöhe)
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50 font-sans">
       <ReportModal
         report={selectedReport}
@@ -109,7 +108,7 @@ export default function LandingPage() {
               </h1>
             </div>
 
-            {/* --- EINGABE CARD --- */}
+            {/* --- INPUT CARD --- */}
             <div className="bg-white p-6 2xl:p-8 rounded-lg shadow-sm border border-gray-200">
               <label className="block text-lg 2xl:text-xl font-semibold text-gray-700 mb-3">
                 Sachverhalt eingeben
@@ -140,7 +139,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* --- DOWNLOAD BEREICH --- */}
+            {/* --- DOWNLOAD AREA --- */}
             {response && (
               <div className="animate-fade-in space-y-6">
 
