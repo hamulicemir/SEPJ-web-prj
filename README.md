@@ -4,7 +4,7 @@ Dieses Repository enthält ein Full-Stack-Projekt mit:
 - **PostgreSQL 16** (Datenbank)
 - **Backend** (FastAPI/Uvicorn, Dockerfile im `./backend`)
 - **Frontend** (Node 20, Dev-Server auf Port 5173)
-- **Ollama** (LLM Runtime, z. B. `qwen:2.5:3b`)
+- **Ollama** (LLM Runtime, z. B. `qwen:2.5:7b`)
 - **Tests** (Pytest im Backend-Container)
 
 ---
@@ -46,7 +46,7 @@ DB_PASSWORD=sepj_pw
 DATABASE_URL=postgresql+psycopg://sepj:sepj_pw@db:5432/sepj
 
 OLLAMA_PORT=11434
-OLLAMA_MODEL=qwen:2.5:3b
+OLLAMA_MODEL=qwen:2.5:7b
 ```
 
 Wichtig:
@@ -101,12 +101,12 @@ Hinweis:
 
 ---
 
-## Ollama Modell installieren (qwen:2.5:3b)
+## Ollama Modell installieren (qwen:2.5:7b)
 
 ### Option A (empfohlen): Pull im Ollama-Container
 
 ```bash
-docker compose exec ollama ollama pull qwen:2.5:3b
+docker compose exec ollama ollama pull qwen:2.5:7b
 ```
 
 Hinweis:
@@ -175,7 +175,7 @@ docker compose exec db psql -U sepj -d sepj -f /sepj_init.sql
   ```
 - Modell nachziehen:
   ```bash
-  docker compose exec ollama ollama pull qwen:2.5:3b
+  docker compose exec ollama ollama pull qwen:2.5:7b
   ```
 
 ---
@@ -191,7 +191,7 @@ docker compose cp db/sepj_init.sql db:/sepj_init.sql
 docker compose exec db psql -U sepj -d sepj -f /sepj_init.sql
 
 # 3) Ollama Modell installieren
-docker compose exec ollama ollama pull qwen:2.5:3b
+docker compose exec ollama ollama pull qwen:2.5:7b
 
 # 4) (optional) Tests
 docker compose run --rm tests
