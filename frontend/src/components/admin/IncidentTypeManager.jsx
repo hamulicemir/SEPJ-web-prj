@@ -104,11 +104,9 @@ export default function IncidentTypeManager() {
 
   return (
     <>
-      {/* WICHTIG: Hier die feste Höhe für das Grid setzen */}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
         
-        {/* LISTE (LINKE SPALTE) */}
-        {/* WICHTIG: h-full auf der Card, damit sie die Grid-Höhe annimmt */}
         <Card className="md:col-span-1 h-full overflow-hidden">
           <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-2 shrink-0">
@@ -118,7 +116,6 @@ export default function IncidentTypeManager() {
               </Button>
             </div>
             
-            {/* WICHTIG: flex-grow und overflow-y-auto sorgen für Scrollen NUR in der Liste */}
             <div className="flex-grow overflow-y-auto space-y-2 pr-1">
               {types.map((t) => (
                 <div
@@ -140,8 +137,6 @@ export default function IncidentTypeManager() {
           </div>
         </Card>
 
-        {/* EDITOR (RECHTE SPALTE) */}
-        {/* WICHTIG: h-full auf der Card */}
         <Card className="md:col-span-2 h-full">
           {selected || isCreating ? (
             <div className="flex flex-col h-full gap-4">
@@ -210,7 +205,6 @@ export default function IncidentTypeManager() {
               </div>
             </div>
           ) : (
-            /* WICHTIG: h-full hier sorgt für vertikale Zentrierung im leeren Zustand */
             <div className="flex items-center justify-center h-full text-gray-400">
               Bearbeite einen Vorfallstypen oder erstelle einen neuen.
             </div>

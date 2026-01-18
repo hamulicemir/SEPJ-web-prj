@@ -123,9 +123,7 @@ export default function PromptManager() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
-        {/* LINKE SPALTE: Liste */}
         <Card className="md:col-span-1 h-full">
-          {/* justify-start verhindert den großen Abstand oben */}
           <div className="flex flex-col h-full justify-start">
             <div className="flex justify-between items-center mb-2 shrink-0">
               <h2 className="text-xl font-bold">Prompts</h2>
@@ -139,7 +137,6 @@ export default function PromptManager() {
                 <button
                   key={p.id}
                   onClick={() => handleSelect(p)}
-                  // HIER IST DIE ÄNDERUNG: border-black statt border-gray-200
                   className={`w-full text-left p-2 rounded border cursor-pointer hover:bg-gray-50 transition-colors
                     ${
                       selected?.id === p.id
@@ -161,7 +158,6 @@ export default function PromptManager() {
           </div>
         </Card>
 
-        {/* RECHTE SPALTE: Editor */}
         <Card className="md:col-span-2 h-full">
           {selected || isCreating ? (
             <div className="flex flex-col h-full gap-4">

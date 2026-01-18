@@ -63,7 +63,7 @@ async def call_ollama_with_meta(model: str, base_url: str, prompt: str) -> tuple
         "prompt": prompt,
         "stream": False,
         "options": {"num_predict": -1},
-        "temperature": 0.2 # Low temp for precision
+        "temperature": 0.2 
     }
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(url, json=payload)
@@ -219,7 +219,7 @@ async def analyze_incident(payload: AnalyzeRequest, db: Session = Depends(get_db
     for inc_type, facts in answers.items():
         facts_summary += f"\n[{inc_type.upper()}]\n" + "\n".join([f"- {k}: {v}" for k,v in facts.items()])
 
-    # final report generation - V6 PROMPT (Fluent Style & Robust Metadata)
+    # final report generation
     writer_prompt = f"""
 Du bist ein professioneller Schriftführer im österreichischen Justizvollzug.
 Deine Aufgabe: Verfasse einen **fließenden, narrativen** Amtsbericht und extrahiere Metadaten.
@@ -362,5 +362,6 @@ Gib NUR das JSON zurück.
 
     return {
         "status": "ok", "final_report": final_report_structure, "model": model_name,
-        "raw_report_id": str(raw_report.id), "matched_incident_types": matched_incidents
+        "raw_report_id": str(raw_report.id), "matched_incident_types": matched_incidents,
+        "prompt": writer_prompt
     }

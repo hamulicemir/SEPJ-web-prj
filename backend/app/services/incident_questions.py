@@ -70,7 +70,7 @@ def create_question(db: Session, data: QuestionBase):
 def update_question(db: Session, q_id: uuid.UUID, data: QuestionUpdate):
     obj = db.query(IncidentQuestion).filter(IncidentQuestion.id == q_id).first()
     if obj:
-        # Nur Felder updaten die gesetzt sind
+        # only update already set fields
         update_data = data.dict(exclude_unset=True)
         for key, val in update_data.items():
             setattr(obj, key, val)

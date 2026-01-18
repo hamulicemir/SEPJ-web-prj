@@ -22,7 +22,7 @@ def create_raw_report(
         created_by=created_by,
     )
     db.add(report)
-    db.flush()  # damit report.id gesetzt ist
+    db.flush()  
     return report
 
 
@@ -59,7 +59,6 @@ def create_llm_run(
     tokens_prompt = None
     tokens_completion = None
 
-    # Optional: typische Felder von Ollama, nur wenn vorhanden
     if isinstance(response_payload, dict):
         tokens_prompt = response_payload.get("prompt_eval_count")
         tokens_completion = response_payload.get("eval_count")
